@@ -43,6 +43,9 @@ services:
       - data-files:/data/files
       - docreader-tmp:/tmp/docreader:ro
       - ./config/config.yaml:/app/config/config.yaml
+      - ./config/prompt_templates:/app/config/prompt_templates:ro
+      - ./config/builtin_agents.yaml:/app/config/builtin_agents.yaml:ro
+      - ./config/agent_type_presets.yaml:/app/config/agent_type_presets.yaml:ro
       # Optional: mount custom skills directory (allows adding skills without rebuilding image)
       - ./skills/preloaded:/app/skills/preloaded
       # Optional: declarative built-in models. Copy config/builtin_models.yaml.example

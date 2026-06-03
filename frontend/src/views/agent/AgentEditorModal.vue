@@ -1315,6 +1315,7 @@ import {
   getPlaceholders,
   getAgentTypePresets,
   type CustomAgent,
+  type CustomAgentConfig,
   type PlaceholderDefinition,
   type AgentTypePreset,
   type AgentType,
@@ -2135,6 +2136,27 @@ const incompatibleSelectedKbCount = computed(() => {
   return filteredKbOptionsForPreset.value.filter(kb => selected.has(kb.value) && kb.disabled).length;
 });
 
+const findAgentSystemPromptTemplate = (id?: string) => {
+  if (!id) return undefined;
+  return agentSystemPromptTemplates.value.find(t => t.id === id && typeof t.content === 'string' && t.content.length > 0);
+};
+
+const fillSystemPromptFromTemplate = (config: CustomAgentConfig, overwrite = false) => {
+  const presetPromptId = config.agent_type
+    ? agentTypePresets.value.find(p => p.id === config.agent_type)?.config?.system_prompt_id
+    : undefined;
+  const promptId = config.system_prompt_id || presetPromptId;
+  if (!promptId || (!overwrite && config.system_prompt)) return false;
+  const tmpl = findAgentSystemPromptTemplate(promptId);
+  if (!tmpl) {
+    console.warn(`[AgentType] system_prompt_id "${promptId}" not found in agent_system_prompt templates`);
+    return false;
+  }
+  config.system_prompt = tmpl.content;
+  config.system_prompt_id = tmpl.id;
+  return true;
+};
+
 // 应用一个预设的 config 到 formData.config（仅覆盖预设里明确设置的字段，其他不动）
 const applyAgentTypePreset = (preset: AgentTypePreset | null) => {
   if (!preset || !preset.config) return;
@@ -2142,17 +2164,9 @@ const applyAgentTypePreset = (preset: AgentTypePreset | null) => {
   const target = formData.value.config;
   if (c.system_prompt_id !== undefined) {
     target.system_prompt_id = c.system_prompt_id;
-    // 根据 system_prompt_id 从已加载的模板列表里查出正文并回填到用户可见的 textarea
-    const tmpl = agentSystemPromptTemplates.value.find(t => t.id === c.system_prompt_id);
-    if (tmpl && typeof tmpl.content === 'string') {
-      target.system_prompt = tmpl.content;
-    } else {
-      // 模板列表还没加载完 / 或预设引用了不存在的 id：清空让用户感知到变化
-      target.system_prompt = '';
-      if (c.system_prompt_id) {
-        console.warn(`[AgentType] system_prompt_id "${c.system_prompt_id}" not found in agent_system_prompt templates`);
-      }
-    }
+    // 根据 system_prompt_id 从已加载的模板列表里查出正文并回填到用户可见的 textarea。
+    // 模板未加载或预设引用异常时保留已有内容，避免编辑页出现空白提示词。
+    fillSystemPromptFromTemplate(target, true);
   }
   if (typeof c.temperature === 'number') target.temperature = c.temperature;
   if (typeof c.max_iterations === 'number') target.max_iterations = c.max_iterations;
@@ -2284,6 +2298,8 @@ watch(() => props.visible, async (val) => {
       nextTick(() => {
         isInitializing.value = false;
       });
+      // 兼容旧数据 / 后端精简返回：如果只保存了 system_prompt_id，打开编辑时回填实际模板正文。
+      fillSystemPromptFromTemplate(formData.value.config);
       // 内置智能体：如果提示词为空，填入系统默认值
       if (agentData.is_builtin) {
         fillBuiltinAgentDefaults();
