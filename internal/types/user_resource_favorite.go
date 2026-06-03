@@ -14,7 +14,7 @@ const (
 // See migration 000047 for the schema rationale (composite key, no FK,
 // tenant-scoped on purpose).
 type UserResourceFavorite struct {
-	UserID       string    `json:"user_id"       gorm:"type:varchar(36);primaryKey"`
+	UserID       string    `json:"user_id"       gorm:"type:varchar(128);primaryKey"`
 	TenantID     uint64    `json:"tenant_id"     gorm:"primaryKey"`
 	ResourceType string    `json:"resource_type" gorm:"type:varchar(16);primaryKey"`
 	ResourceID   string    `json:"resource_id"   gorm:"type:varchar(64);primaryKey"`

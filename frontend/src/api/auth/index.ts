@@ -55,6 +55,18 @@ export interface LoginResponse {
   refresh_token?: string
 }
 
+export interface GoocanExchangeRequest {
+  user_id: string
+  user_code?: string
+  user_name?: string
+  user_email?: string
+  user_avatar?: string
+  corp_id?: string
+  project_id?: string
+  session_id?: string
+  access_token?: string
+}
+
 export interface OIDCAuthURLResponse {
   success: boolean
   authorization_url?: string
@@ -211,6 +223,18 @@ export interface ModelInfo {
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   try {
     const response = await post('/api/v1/auth/login', data)
+    return response as unknown as LoginResponse
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error.message || t('error.auth.loginFailed')
+    }
+  }
+}
+
+export async function exchangeGoocanLogin(data: GoocanExchangeRequest): Promise<LoginResponse> {
+  try {
+    const response = await post('/api/v1/auth/goocan/exchange', data)
     return response as unknown as LoginResponse
   } catch (error: any) {
     return {

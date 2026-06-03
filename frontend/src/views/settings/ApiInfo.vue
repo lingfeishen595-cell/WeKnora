@@ -163,13 +163,7 @@
       <div class="setting-row">
         <div class="setting-info">
           <label>{{ $t('tenant.api.docLabel') }}</label>
-          <p class="desc">
-            {{ $t('tenant.api.docDescription') }}
-            <a @click="openApiDoc" class="doc-link">
-              {{ $t('tenant.api.openDoc') }}
-              <t-icon name="link" class="link-icon" />
-            </a>
-          </p>
+          <p class="desc">{{ $t('tenant.api.docDescription') }}</p>
         </div>
       </div>
       <!-- 用户信息原本嵌在这一页底部，但 api 信息页是 owner-only（要看
@@ -198,7 +192,7 @@ const loading = ref(true)
 const error = ref('')
 const showApiKey = ref(false)
 const resetting = ref(false)
-/** WeKnora Lite (Wails): real API origin is loopback + dynamic port, not window.location.origin */
+/** DataGoocan Lite (Wails): real API origin is loopback + dynamic port, not window.location.origin */
 const wailsApiBaseURL = ref<string | null>(null)
 const showDesktopPortSetting = ref(false)
 const showDesktopBindPublicSetting = ref(false)
@@ -396,10 +390,6 @@ const loadInfo = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const openApiDoc = () => {
-  window.open('https://github.com/Tencent/WeKnora/blob/main/docs/api/README.md', '_blank')
 }
 
 const fallbackCopyText = (text: string) => {
@@ -664,4 +654,3 @@ onMounted(async () => {
   }
 }
 </style>
-

@@ -74,7 +74,7 @@ type CustomAgent struct {
 	// Tenant ID (composite primary key with ID)
 	TenantID uint64 `yaml:"tenant_id" json:"tenant_id" gorm:"primaryKey"`
 	// Created by user ID
-	CreatedBy string `yaml:"created_by" json:"created_by" gorm:"type:varchar(36)"`
+	CreatedBy string `yaml:"created_by" json:"created_by" gorm:"type:varchar(128)"`
 	// RunnableByViewer controls whether users with TenantRoleViewer can
 	// run this agent IN AGENT MODE (i.e. with tools, MCP, sandboxed code
 	// execution, etc.). Plain RAG / Wiki QA sessions against the same

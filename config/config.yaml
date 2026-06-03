@@ -107,6 +107,11 @@ extract:
       Please randomly generate a text with freely chosen content, with a word count between [50-200].
 
 
+# Authentication configuration
+auth:
+  registration_mode: "self_serve"
+  goocan_login_enabled: false
+
 # Tenant configuration
 tenant:
   # Enable cross-tenant access (can be enabled for intranet environments)

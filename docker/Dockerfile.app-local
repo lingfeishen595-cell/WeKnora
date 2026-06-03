@@ -1,0 +1,27 @@
+FROM wechatopenai/weknora-app:latest AS builder
+
+USER root
+COPY --from=golang:1.26-alpine /usr/local/go /usr/local/go
+ENV PATH=/usr/local/go/bin:$PATH
+ENV GOPATH=/go
+ENV CGO_ENABLED=1
+ENV CGO_CFLAGS="-Wno-deprecated-declarations"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git libsqlite3-dev pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go build -ldflags="-w -s -X 'google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'" \
+    -o WeKnora ./cmd/server
+
+FROM wechatopenai/weknora-app:latest
+USER root
+COPY --from=builder /src/WeKnora /app/WeKnora
+COPY --from=builder /src/migrations /app/migrations
+COPY --from=builder /go/pkg/mod/github.com/yanyiwu/ /go/pkg/mod/github.com/yanyiwu/
+RUN chmod +x /app/WeKnora && chown appuser:appuser /app/WeKnora

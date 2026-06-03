@@ -187,6 +187,10 @@ build_frontend_image() {
     
     docker build \
         --platform $PLATFORM \
+        --build-arg VITE_GOOCAN_LOGIN_ENABLED="${VITE_GOOCAN_LOGIN_ENABLED:-false}" \
+        --build-arg VITE_GOOCAN_GATEWAY_URL="${VITE_GOOCAN_GATEWAY_URL:-}" \
+        --build-arg VITE_GOOCAN_PROJECT_ID="${VITE_GOOCAN_PROJECT_ID:-}" \
+        --build-arg VITE_GOOCAN_DEFAULT_CORP_ID="${VITE_GOOCAN_DEFAULT_CORP_ID:-}" \
         -f frontend/Dockerfile \
         -t wechatopenai/weknora-ui:latest \
         frontend/

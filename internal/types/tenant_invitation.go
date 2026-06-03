@@ -71,7 +71,7 @@ type TenantInvitation struct {
 	// The (tenant_id, invitee_user_id) partial unique index in
 	// migration 000054 was relaxed to skip empty values so multiple
 	// share-link rows can coexist per tenant.
-	InviteeUserID string `json:"invitee_user_id" gorm:"type:varchar(36);not null;default:'';index"`
+	InviteeUserID string `json:"invitee_user_id" gorm:"type:varchar(128);not null;default:'';index"`
 	// Token holds the plaintext registration token for share-link
 	// rows. Empty for per-user invitations (those use the in-app
 	// inbox, not a URL). Stored plaintext so the management UI can
@@ -83,7 +83,7 @@ type TenantInvitation struct {
 	// InvitedBy records the user id that issued this invitation. NULL
 	// for invitations created via service-internal / synthetic actors
 	// (mirrors the same treatment TenantMember.InvitedBy gets).
-	InvitedBy *string `json:"invited_by,omitempty" gorm:"type:varchar(36)"`
+	InvitedBy *string `json:"invited_by,omitempty" gorm:"type:varchar(128)"`
 	// Role the invitee will receive in tenant_members if they accept.
 	Role TenantRole `json:"role" gorm:"type:varchar(20);not null"`
 	// Status holds the lifecycle state. Default pending; mutated to

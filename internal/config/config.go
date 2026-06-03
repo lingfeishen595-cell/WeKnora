@@ -265,6 +265,9 @@ type AuthConfig struct {
 	//                            users only enter through the invitation
 	//                            flow added in PR 3.
 	RegistrationMode string `yaml:"registration_mode" json:"registration_mode"`
+	// GoocanLoginEnabled enables POST /auth/goocan/exchange, which turns a
+	// Goocan-authenticated identity into WeKnora's local JWT session.
+	GoocanLoginEnabled bool `yaml:"goocan_login_enabled" json:"goocan_login_enabled"`
 }
 
 // AuthRegistrationMode constants used by handlers and middleware.
@@ -812,6 +815,9 @@ func applyAuthAndTenantDefaults(cfg *Config) {
 
 	if strings.TrimSpace(cfg.Auth.RegistrationMode) == "" {
 		cfg.Auth.RegistrationMode = AuthRegistrationModeSelfServe
+	}
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_GOOCAN_LOGIN_ENABLED")); value != "" {
+		cfg.Auth.GoocanLoginEnabled = strings.EqualFold(value, "true")
 	}
 
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_TENANT_ENABLE_RBAC")); value != "" {

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -231,6 +234,192 @@ func (s *userService) Login(ctx context.Context, req *types.LoginRequest) (*type
 		Token:        accessToken,
 		RefreshToken: refreshToken,
 	}, nil
+}
+
+// LoginWithGoocan exchanges a Goocan-authenticated user identity into local
+// WeKnora tokens. Goocan user_id is the local users.id for newly-created users.
+func (s *userService) LoginWithGoocan(ctx context.Context, req *types.GoocanExchangeRequest) (*types.LoginResponse, error) {
+	if req == nil || strings.TrimSpace(req.UserID) == "" {
+		return &types.LoginResponse{Success: false, Message: "Goocan user_id is required"}, nil
+	}
+
+	goocanUserID := strings.TrimSpace(req.UserID)
+	user, err := s.userRepo.GetUserByID(ctx, goocanUserID)
+	switch {
+	case err == nil && user != nil:
+		if !user.IsActive {
+			return &types.LoginResponse{Success: false, Message: "Account is disabled"}, nil
+		}
+		return s.completeLoginForUser(ctx, user, "Goocan login successful")
+	case errors.Is(err, apprepo.ErrUserNotFound):
+		// Continue to auto-provision below.
+	case err != nil:
+		logger.Errorf(ctx, "Goocan login failed to look up user_id=%s: %v",
+			secutils.SanitizeForLog(goocanUserID), err)
+		return &types.LoginResponse{Success: false, Message: "Login failed"}, nil
+	}
+
+	email := normalizeGoocanEmail(req.UserEmail, goocanUserID)
+	if rawEmail := strings.TrimSpace(req.UserEmail); rawEmail != "" {
+		existingByEmail, emailErr := s.userRepo.GetUserByEmail(ctx, rawEmail)
+		if emailErr == nil && existingByEmail != nil && existingByEmail.ID != goocanUserID {
+			logger.Warnf(ctx,
+				"Goocan login email conflict: user_id=%s email=%s existing_user_id=%s",
+				secutils.SanitizeForLog(goocanUserID),
+				secutils.SanitizeForLog(rawEmail),
+				secutils.SanitizeForLog(existingByEmail.ID),
+			)
+			return &types.LoginResponse{
+				Success: false,
+				Message: "Goocan email already belongs to another WeKnora user",
+			}, nil
+		}
+	}
+
+	username := s.uniqueGoocanUsername(ctx, req, goocanUserID)
+
+	tenant := &types.Tenant{
+		Name:        fmt.Sprintf("%s's Workspace", secutils.SanitizeForLog(username)),
+		Description: "Default workspace",
+		Status:      "active",
+	}
+	createdTenant, err := s.tenantService.CreateTenant(ctx, tenant)
+	if err != nil {
+		logger.Errorf(ctx, "Goocan login failed to create tenant for user_id=%s: %v",
+			secutils.SanitizeForLog(goocanUserID), err)
+		return &types.LoginResponse{Success: false, Message: "Failed to create workspace"}, nil
+	}
+
+	passwordHash, err := randomPasswordHash()
+	if err != nil {
+		logger.Errorf(ctx, "Goocan login failed to create password hash for user_id=%s: %v",
+			secutils.SanitizeForLog(goocanUserID), err)
+		return &types.LoginResponse{Success: false, Message: "Failed to create user"}, nil
+	}
+
+	user = &types.User{
+		ID:           goocanUserID,
+		Username:     username,
+		Email:        email,
+		PasswordHash: passwordHash,
+		Avatar:       strings.TrimSpace(req.UserAvatar),
+		TenantID:     createdTenant.ID,
+		IsActive:     true,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	if err := s.userRepo.CreateUser(ctx, user); err != nil {
+		logger.Errorf(ctx, "Goocan login failed to create user_id=%s: %v",
+			secutils.SanitizeForLog(goocanUserID), err)
+		return &types.LoginResponse{Success: false, Message: "Failed to create user"}, nil
+	}
+
+	if s.memberService != nil {
+		if _, err := s.memberService.EnsureOwner(ctx, user.ID, createdTenant.ID); err != nil {
+			logger.Errorf(ctx, "Goocan login failed to create owner membership for user %s tenant %d: %v",
+				secutils.SanitizeForLog(user.ID), createdTenant.ID, err)
+		}
+	}
+
+	return s.completeLoginForUser(ctx, user, "Goocan login successful")
+}
+
+func (s *userService) completeLoginForUser(ctx context.Context, user *types.User, message string) (*types.LoginResponse, error) {
+	resolvedTenantID := s.resolveLoginTenantID(ctx, user)
+	accessToken, refreshToken, err := s.generateTokensForTenant(ctx, user, resolvedTenantID)
+	if err != nil {
+		logger.Errorf(ctx, "Failed to generate tokens for user_id=%s: %v",
+			secutils.SanitizeForLog(user.ID), err)
+		return &types.LoginResponse{Success: false, Message: "Login failed"}, nil
+	}
+
+	tenant, err := s.tenantService.GetTenantByID(ctx, resolvedTenantID)
+	if err != nil {
+		logger.Warnf(ctx, "Failed to get tenant info for user_id=%s tenant_id=%d: %v",
+			secutils.SanitizeForLog(user.ID), resolvedTenantID, err)
+	}
+
+	return &types.LoginResponse{
+		Success:      true,
+		Message:      message,
+		User:         user,
+		ActiveTenant: tenant,
+		Memberships:  s.buildMembershipsForUser(ctx, user, tenant),
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func normalizeGoocanEmail(rawEmail, userID string) string {
+	if email := strings.TrimSpace(rawEmail); email != "" && email != "#-1#" {
+		return email
+	}
+	local := sanitizeIdentifierPart(userID)
+	if local == "" || len(local) > 180 {
+		local = "user-" + shortHash(userID)
+	}
+	return fmt.Sprintf("goocan-%s-%s@goocan.local", local, shortHash(userID))
+}
+
+func (s *userService) uniqueGoocanUsername(ctx context.Context, req *types.GoocanExchangeRequest, userID string) string {
+	candidate := strings.TrimSpace(req.UserName)
+	if candidate == "" {
+		candidate = strings.TrimSpace(req.UserCode)
+	}
+	if candidate == "" {
+		candidate = "goocan-" + userID
+	}
+	candidate = sanitizeUsername(candidate)
+	if candidate == "" {
+		candidate = "goocan-" + shortHash(userID)
+	}
+	candidate = truncateGoocanString(candidate, 100)
+	existing, err := s.userRepo.GetUserByUsername(ctx, candidate)
+	if err != nil || existing == nil || existing.ID == userID {
+		return candidate
+	}
+	suffix := "-" + shortHash(userID)
+	return truncateGoocanString(candidate, 100-len(suffix)) + suffix
+}
+
+func randomPasswordHash() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(base64.RawURLEncoding.EncodeToString(buf)), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+func sanitizeIdentifierPart(s string) string {
+	re := regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
+	out := strings.Trim(re.ReplaceAllString(strings.TrimSpace(s), "-"), ".-_")
+	return strings.ToLower(out)
+}
+
+func sanitizeUsername(s string) string {
+	re := regexp.MustCompile(`[^\p{Han}a-zA-Z0-9_@.+-]+`)
+	out := strings.Trim(re.ReplaceAllString(strings.TrimSpace(s), "_"), "_")
+	return out
+}
+
+func shortHash(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])[:8]
+}
+
+func truncateGoocanString(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max])
 }
 
 // buildMembershipsForUser returns the user's tenant memberships projected

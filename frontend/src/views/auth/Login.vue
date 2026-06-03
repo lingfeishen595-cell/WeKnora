@@ -96,30 +96,12 @@
     </div>
 
     <!-- Logo - Top Left -->
-    <a href="https://github.com/Tencent/WeKnora" target="_blank" class="header-logo" :title="$t('common.github')">
-      <img src="@/assets/img/weknora.png" alt="WeKnora" class="logo-image" />
-    </a>
+    <div class="header-logo">
+      <img src="@/assets/img/weknora.png" alt="DataGoocan" class="logo-image" />
+    </div>
 
     <!-- Header Links - Top Right -->
     <div class="header-links">
-      <a href="https://weknora.weixin.qq.com" target="_blank" class="header-link" :title="$t('common.website')">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-          stroke-linecap="round">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="2" y1="12" x2="22" y2="12" />
-          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-        </svg>
-        <span class="link-text">{{ $t('common.website') }}</span>
-      </a>
-
-      <a href="https://github.com/Tencent/WeKnora" target="_blank" class="header-link" :title="$t('common.info')">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-          <path
-            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-        </svg>
-        <span class="link-text">GitHub</span>
-      </a>
-
       <div class="language-switch">
         <button @click="toggleLanguageMenu" class="header-link" :title="currentLangOption?.label">
           <span class="lang-flag-icon">{{ currentLangOption?.flag }}</span>
@@ -183,40 +165,47 @@
           </div>
 
           <div class="form-content">
-            <t-form ref="formRef" :data="formData" :rules="formRules" @submit="handleLogin" layout="vertical">
-              <t-form-item :label="$t('auth.email')" name="email">
-                <t-input v-model="formData.email" :placeholder="$t('auth.emailPlaceholder')" type="text"
-                  autocomplete="email" size="large" :disabled="loading" />
-              </t-form-item>
-
-              <t-form-item :label="$t('auth.password')" name="password">
-                <t-input v-model="formData.password" :placeholder="$t('auth.passwordPlaceholder')" type="password"
-                  size="large" :disabled="loading" @enter="handleLogin" />
-              </t-form-item>
-
-              <t-button type="submit" theme="primary" size="large" block :loading="loading" class="submit-button">
-                {{ loading ? $t('auth.loggingIn') : $t('auth.login') }}
-              </t-button>
-
-              <div class="register-cta" v-if="registrationEnabled">
-                <div class="register-cta__divider">
-                  <span>{{ $t('auth.firstTime') }}</span>
-                </div>
-                <t-button theme="default" variant="outline" size="large" block class="register-cta__button"
-                  :disabled="loading" @click="toggleMode">
-                  {{ $t('auth.createAccount') }}
-                </t-button>
-              </div>
-
-              <div v-if="oidcEnabled" class="oidc-divider">
-                <span>{{ $t('auth.orContinueWith') }}</span>
-              </div>
-
-              <t-button v-if="oidcEnabled" theme="default" size="large" block :loading="oidcLoading" :disabled="loading"
-                class="oidc-button" @click="handleOIDCLogin">
-                {{ oidcLoading ? $t('auth.redirectingToOIDC') : oidcLoginText }}
-              </t-button>
-            </t-form>
+        <div v-if="goocanEnabled" class="goocan-login">
+          <t-form layout="vertical" :data="goocanForm" @submit="handleGoocanPasswordLogin">
+            <t-form-item label="CorpID" name="corpId">
+              <t-input
+                v-model="goocanForm.corpId"
+                placeholder="请输入 CorpID"
+                size="large"
+                :disabled="goocanLoading"
+              />
+            </t-form-item>
+            <t-form-item label="账号/手机号/工号" name="username">
+              <t-input
+                v-model="goocanForm.username"
+                placeholder="请输入账号/手机号/工号"
+                size="large"
+                :disabled="goocanLoading"
+              />
+            </t-form-item>
+            <t-form-item label="Goocan 密码" name="password">
+              <t-input
+                v-model="goocanForm.password"
+                placeholder="请输入 Goocan 密码"
+                type="password"
+                size="large"
+                :disabled="goocanLoading"
+                @enter="handleGoocanPasswordLogin"
+              />
+            </t-form-item>
+            <t-button
+              type="submit"
+              theme="primary"
+              size="large"
+              block
+              :loading="goocanLoading"
+              :disabled="loading || oidcLoading"
+              class="goocan-button"
+            >
+              {{ goocanLoading ? '正在登录...' : 'Goocan 登录' }}
+            </t-button>
+          </t-form>
+        </div>
 
             <!-- Features list -->
             <div class="login-features">
@@ -339,11 +328,21 @@ import {
   getOIDCConfig,
   autoSetup,
   getAuthConfig,
+  exchangeGoocanLogin,
   userInfoFromApi,
   getInvitationByToken,
   registerByInvite,
   type InviteLookup,
 } from '@/api/auth'
+import {
+  convertGoocanThird,
+  getGoocanDefaultCorpId,
+  getGoocanProjectId,
+  isGoocanLoginEnabled,
+  loginWithGoocanCode,
+  loginWithGoocanPassword,
+  type GoocanLoginResponse,
+} from '@/api/goocan-login'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 
@@ -387,10 +386,12 @@ const registerFormRef = ref()
 // State management
 const loading = ref(false)
 const oidcLoading = ref(false)
+const goocanLoading = ref(false)
 const isRegisterMode = ref(false)
 const showLanguageMenu = ref(false)
 const oidcEnabled = ref(false)
 const oidcProviderName = ref('')
+const goocanEnabled = computed(() => isGoocanLoginEnabled())
 // registrationEnabled defaults to true so that on first paint the Register
 // link is visible; the actual mode is fetched from /auth/config in onMounted.
 // In invite_only mode the link/card are hidden.
@@ -427,6 +428,12 @@ const currentLangOption = computed(() => languageOptions.find(l => l.value === c
 // Login form data
 const formData = reactive<{ [key: string]: any }>({
   email: '',
+  password: '',
+})
+
+const goocanForm = reactive({
+  corpId: getGoocanDefaultCorpId(),
+  username: '',
   password: '',
 })
 
@@ -644,6 +651,102 @@ const handleLogin = async () => {
   }
 }
 
+const persistGoocanLogin = async (data: GoocanLoginResponse) => {
+  const response = await exchangeGoocanLogin({
+    user_id: data.user_id,
+    user_code: data.user_code,
+    user_name: data.user_name,
+    user_email: data.user_email,
+    user_avatar: data.user_avatar,
+    corp_id: data.corp_id || data.out_organ_id || goocanForm.corpId,
+    project_id: data.project_id || getGoocanProjectId(),
+    session_id: data.session_id,
+    access_token: data.access_token,
+  })
+  if (!response.success) {
+    MessagePlugin.error(response.message || 'Goocan 登录失败')
+    return
+  }
+  await persistLoginResponse(response)
+  notifyLoginSuccess(response, t, tm, formatRole, roleIcon)
+}
+
+const handleGoocanPasswordLogin = async () => {
+  if (!goocanForm.corpId || !goocanForm.username || !goocanForm.password) {
+    MessagePlugin.warning('请输入 CorpID、账号和密码')
+    return
+  }
+  try {
+    goocanLoading.value = true
+    const result = await loginWithGoocanPassword({
+      corpId: goocanForm.corpId,
+      username: goocanForm.username,
+      password: goocanForm.password,
+      projectId: getGoocanProjectId(),
+    })
+    await persistGoocanLogin({ ...result, corp_id: result.corp_id || goocanForm.corpId })
+  } catch (error: any) {
+    console.error('Goocan 登录错误:', error)
+    MessagePlugin.error(error.message || 'Goocan 登录失败')
+  } finally {
+    goocanLoading.value = false
+  }
+}
+
+const requestDingTalkCode = async (corpId: string): Promise<string> => {
+  const authModule = '@goocan/jssdk/api/auth'
+  const mod = await import(/* @vite-ignore */ authModule)
+  const convertRes = await convertGoocanThird({ corpId, projectId: getGoocanProjectId(), source: '3' })
+  return new Promise((resolve, reject) => {
+    mod.requestAuthCode({
+      corpId: convertRes.corp_out_id,
+      onSuccess: (result: { code: string }) => resolve(result.code),
+      onFail: reject,
+    })
+  })
+}
+
+const tryGoocanAutoLogin = async () => {
+  if (!goocanEnabled.value) return false
+  const corpId = String(route.query.corpId || goocanForm.corpId || '').trim()
+  if (!corpId) return false
+
+  try {
+    const envModule = '@goocan/jssdk/api/env'
+    const env = await import(/* @vite-ignore */ envModule).catch(() => null)
+    const platform = env?.platform || ''
+    if (platform === 'dingtalk') {
+      goocanLoading.value = true
+      goocanForm.corpId = corpId
+      const code = await requestDingTalkCode(corpId)
+      const result = await loginWithGoocanCode({ code, corpId, projectId: getGoocanProjectId() })
+      await persistGoocanLogin({ ...result, corp_id: result.corp_id || corpId })
+      return true
+    }
+    if (platform === 'wecom') {
+      const code = String(route.query.code || '').trim()
+      const agentId = String(route.query.agentId || '').trim()
+      if (code) {
+        goocanLoading.value = true
+        goocanForm.corpId = corpId
+        const result = await loginWithGoocanCode({ code, corpId, agentId, projectId: getGoocanProjectId() })
+        await persistGoocanLogin({ ...result, corp_id: result.corp_id || corpId })
+        return true
+      }
+      const convertRes = await convertGoocanThird({ corpId, projectId: getGoocanProjectId(), source: '4056' })
+      const redirectUri = encodeURIComponent(window.location.href)
+      window.location.href = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${convertRes.corp_out_id}&redirect_uri=${redirectUri}&agentId=${agentId}&response_type=code&scope=snsapi_base#wechat_redirect`
+      return true
+    }
+  } catch (error) {
+    console.error('Goocan 自动登录失败:', error)
+    MessagePlugin.error('Goocan 自动登录失败')
+  } finally {
+    goocanLoading.value = false
+  }
+  return false
+}
+
 // Handle registration. Dispatches based on whether the user arrived
 // with a share-link token: with token -> register-by-invite (auto-
 // login on success); without -> the normal self-service register
@@ -741,6 +844,10 @@ onMounted(async () => {
 
   if (authStore.isLoggedIn) {
     router.replace('/platform/knowledge-bases')
+    return
+  }
+
+  if (await tryGoocanAutoLogin()) {
     return
   }
 
@@ -1500,6 +1607,19 @@ onMounted(async () => {
   border-radius: 8px;
   font-size: 15px;
   font-weight: 500;
+}
+
+.goocan-login {
+  margin-top: 0;
+}
+
+.goocan-button {
+  height: 46px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: var(--app-font-family);
+  margin-top: 2px;
 }
 
 .form-footer {

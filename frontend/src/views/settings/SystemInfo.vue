@@ -113,21 +113,6 @@
           <template #default>
             <p class="migration-error-desc">{{ $t('system.dbMigrationFailedDesc') }}</p>
             <pre class="migration-error-detail">{{ systemInfo.db_migration_error }}</pre>
-            <div class="migration-error-actions">
-              <t-link
-                theme="primary"
-                :href="troubleshootingDocsURL"
-                target="_blank"
-                rel="noopener noreferrer"
-              >{{ $t('system.dbMigrationViewDocs') }}</t-link>
-              <span class="migration-error-actions-sep">·</span>
-              <t-link
-                theme="primary"
-                :href="reportIssueURL"
-                target="_blank"
-                rel="noopener noreferrer"
-              >{{ $t('system.dbMigrationReportIssue') }}</t-link>
-            </div>
           </template>
         </t-alert>
       </div>
@@ -170,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { getSystemInfo, type SystemInfo } from '@/api/system'
 import { useI18n } from 'vue-i18n'
 
@@ -181,37 +166,6 @@ const systemInfo = ref<SystemInfo | null>(null)
 const loading = ref(true)
 const error = ref('')
 const frontendVersion = __FRONTEND_VERSION__
-
-const troubleshootingDocsURL =
-  'https://github.com/Tencent/WeKnora/blob/main/docs/migration-troubleshooting.md'
-
-// Pre-fills a new issue with the current migration error so users don't have to
-// paste it manually. Body is intentionally minimal — the bug template will fill
-// in the rest. Encode aggressively to survive newlines / quotes.
-const reportIssueURL = computed(() => {
-  const base = 'https://github.com/Tencent/WeKnora/issues/new'
-  const params = new URLSearchParams({
-    template: 'bug_report.yml',
-    title: '[Bug]: Database migration failed at startup',
-    labels: 'bug',
-  })
-  const errMsg = systemInfo.value?.db_migration_error
-  if (errMsg) {
-    const body = [
-      '### Environment',
-      `- WeKnora version: ${systemInfo.value?.version || 'unknown'}`,
-      `- Commit: ${systemInfo.value?.commit_id || 'unknown'}`,
-      `- DB version reported: ${systemInfo.value?.db_version || 'unknown'}`,
-      '',
-      '### Migration error',
-      '```',
-      errMsg,
-      '```',
-    ].join('\n')
-    params.set('body', body)
-  }
-  return `${base}?${params.toString()}`
-})
 
 // Methods
 const loadInfo = async () => {

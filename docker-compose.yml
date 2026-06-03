@@ -5,6 +5,10 @@ services:
       context: ./frontend
       args:
         - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-50}
+        - VITE_GOOCAN_LOGIN_ENABLED=${VITE_GOOCAN_LOGIN_ENABLED:-false}
+        - VITE_GOOCAN_GATEWAY_URL=${VITE_GOOCAN_GATEWAY_URL:-}
+        - VITE_GOOCAN_PROJECT_ID=${VITE_GOOCAN_PROJECT_ID:-}
+        - VITE_GOOCAN_DEFAULT_CORP_ID=${VITE_GOOCAN_DEFAULT_CORP_ID:-}
     container_name: WeKnora-frontend
     ports:
       - "${FRONTEND_PORT:-80}:80"

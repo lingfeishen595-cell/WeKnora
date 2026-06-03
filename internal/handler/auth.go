@@ -220,6 +220,38 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *AuthHandler) GoocanExchange(c *gin.Context) {
+	ctx := c.Request.Context()
+	if h.configInfo == nil || h.configInfo.Auth == nil || !h.configInfo.Auth.GoocanLoginEnabled {
+		c.Error(errors.NewForbiddenError("Goocan login is disabled"))
+		return
+	}
+
+	var req types.GoocanExchangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		appErr := errors.NewValidationError("Invalid Goocan login parameters").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+
+	response, err := h.userService.LoginWithGoocan(ctx, &req)
+	if err != nil {
+		logger.Errorf(ctx, "Failed to exchange Goocan login: %v", err)
+		appErr := errors.NewUnauthorizedError("Goocan login failed").WithDetails(err.Error())
+		c.Error(appErr)
+		return
+	}
+	if !response.Success {
+		logger.Warnf(ctx, "Goocan login failed: %s", response.Message)
+		c.JSON(http.StatusUnauthorized, response)
+		return
+	}
+
+	logger.Infof(ctx, "Goocan user logged in successfully, user_id: %s",
+		secutils.SanitizeForLog(req.UserID))
+	c.JSON(http.StatusOK, response)
+}
+
 // GetOIDCAuthorizationURL godoc
 // @Summary      获取OIDC授权地址
 // @Description  根据后端OIDC配置生成第三方登录跳转地址

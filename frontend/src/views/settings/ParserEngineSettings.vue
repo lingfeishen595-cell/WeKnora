@@ -166,7 +166,7 @@
         </section>
 
         <!--
-          Section 2 — 状态信息（DocReader 连接 / WeKnoraCloud 凭证）
+          Section 2 — 状态信息（DocReader 连接 / DataGoocan Cloud 凭证）
           只有有内容时才渲染，避免空 section 空底部分隔线。
         -->
         <section
@@ -673,7 +673,7 @@ async function onSave() {
   }
 }
 
-// ---- WeKnoraCloud 凭证状态 ----
+// ---- DataGoocan Cloud 凭证状态 ----
 const wkcState = ref<'loading' | 'unconfigured' | 'configured' | 'expired'>('loading')
 
 async function checkWkcStatus() {

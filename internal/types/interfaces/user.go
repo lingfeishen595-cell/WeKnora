@@ -12,6 +12,8 @@ type UserService interface {
 	Register(ctx context.Context, req *types.RegisterRequest) (*types.User, error)
 	// Login authenticates a user and returns tokens
 	Login(ctx context.Context, req *types.LoginRequest) (*types.LoginResponse, error)
+	// LoginWithGoocan exchanges a Goocan-authenticated identity into local WeKnora tokens.
+	LoginWithGoocan(ctx context.Context, req *types.GoocanExchangeRequest) (*types.LoginResponse, error)
 	// GetOIDCAuthorizationURL builds the third-party OIDC authorization URL
 	GetOIDCAuthorizationURL(ctx context.Context, redirectURI string) (*types.OIDCAuthURLResponse, error)
 	// LoginWithOIDC exchanges the callback code, auto-provisions users if needed, and completes login

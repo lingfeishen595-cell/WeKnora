@@ -154,7 +154,7 @@
             </t-select>
           </div>
 
-          <!-- WeKnoraCloud 提示信息 -->
+          <!-- DataGoocan Cloud 提示信息 -->
           <template v-if="formData.provider === 'weknoracloud'">
             <!-- 凭证已配置 -->
             <div v-if="wkcCredentialState === 'configured'" class="weknoracloud-hint weknoracloud-hint--ok">
@@ -556,7 +556,7 @@ const modelTypeIcon = computed(() => {
 })
 
 // Credential resource binding for the shared <CredentialResource> component.
-// "app_secret" is only relevant for the WeKnora Cloud provider; the visible
+// "app_secret" is only relevant for the DataGoocan Cloud provider; the visible
 // fields collapse to just api_key for every other provider. We always pass
 // both keys to the backend (it returns metadata for each), but only render
 // the ones meaningful to the current provider.
@@ -626,7 +626,7 @@ let downloadInterval: any = null
 const ollamaServiceStatus = ref<boolean | null>(null)
 const checkingOllamaStatus = ref(false)
 
-// WeKnoraCloud 凭证状态
+// DataGoocan Cloud 凭证状态
 const wkcCredentialState = ref<'loading' | 'unconfigured' | 'configured' | 'expired'>('loading')
 
 const checkWkcCredentialStatus = async () => {
@@ -830,7 +830,7 @@ watch(() => props.visible, (val) => {
       formData.value.source = 'remote'
     }
 
-    // 如果当前 provider 是 WeKnoraCloud，检查凭证状态
+    // 如果当前 provider 是 DataGoocan Cloud，检查凭证状态
     if (formData.value.provider === 'weknoracloud') {
       checkWkcCredentialStatus()
     }
@@ -879,7 +879,7 @@ const handleProviderChange = (value: string) => {
     remoteAvailable.value = false
     remoteMessage.value = ''
   }
-  // WeKnoraCloud: 检查凭证状态
+  // DataGoocan Cloud: 检查凭证状态
   if (value === 'weknoracloud') {
     checkWkcCredentialStatus()
   }
@@ -1182,7 +1182,7 @@ const handleConfirm = async () => {
       return
     }
 
-    // 如果是 remote 类型且非 WeKnoraCloud，必须填写 baseUrl
+    // 如果是 remote 类型且非 DataGoocan Cloud，必须填写 baseUrl
     if (formData.value.source === 'remote' && formData.value.provider !== 'weknoracloud') {
       if (!formData.value.baseUrl || !formData.value.baseUrl.trim()) {
         MessagePlugin.warning(t('model.editor.remoteBaseUrlRequired'))
@@ -1578,7 +1578,7 @@ const handleCancel = () => {
   }
 }
 
-// WeKnoraCloud 提示信息
+// DataGoocan Cloud 提示信息
 .weknoracloud-hint {
   display: flex;
   align-items: flex-start;

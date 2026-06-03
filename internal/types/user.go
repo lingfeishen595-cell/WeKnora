@@ -19,6 +19,7 @@ import (
 //  1. Add a *T field below + JSON tag (snake_case, must match the front-end key).
 //  2. Extend the merge logic in service.UserService.UpdateUserPreferences.
 //  3. Surface the new knob in the frontend settings store.
+//
 // No DB DDL is required — preferences is a single jsonb column.
 type UserPreferences struct {
 	// EnableMemory mirrors the "开启记忆功能" switch in General Settings.
@@ -77,7 +78,7 @@ func (p *UserPreferences) Scan(value interface{}) error {
 // User represents a user in the system
 type User struct {
 	// Unique identifier of the user
-	ID string `json:"id"         gorm:"type:varchar(36);primaryKey"`
+	ID string `json:"id"         gorm:"type:varchar(128);primaryKey"`
 	// Username of the user
 	Username string `json:"username"   gorm:"type:varchar(100);uniqueIndex;not null"`
 	// Email address of the user
@@ -114,7 +115,7 @@ type AuthToken struct {
 	// Unique identifier of the token
 	ID string `json:"id"         gorm:"type:varchar(36);primaryKey"`
 	// User ID that owns this token
-	UserID string `json:"user_id"    gorm:"type:varchar(36);index;not null"`
+	UserID string `json:"user_id"    gorm:"type:varchar(128);index;not null"`
 	// Token value (JWT or other format)
 	Token string `json:"token"      gorm:"type:text;not null"`
 	// Token type (access_token, refresh_token)
@@ -136,6 +137,18 @@ type AuthToken struct {
 type LoginRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
+}
+
+type GoocanExchangeRequest struct {
+	UserID      string `json:"user_id" binding:"required"`
+	UserCode    string `json:"user_code"`
+	UserName    string `json:"user_name"`
+	UserEmail   string `json:"user_email"`
+	UserAvatar  string `json:"user_avatar"`
+	CorpID      string `json:"corp_id"`
+	ProjectID   string `json:"project_id"`
+	SessionID   string `json:"session_id"`
+	AccessToken string `json:"access_token"`
 }
 
 type OIDCAuthURLResponse struct {

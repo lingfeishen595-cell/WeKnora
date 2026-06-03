@@ -170,7 +170,7 @@ export interface InitializeWeKnoraCloudRequest {
   app_secret: string
 }
 
-// 仅保存 WeKnoraCloud 凭证，不自动创建模型
+// 仅保存 DataGoocan Cloud 凭证，不自动创建模型
 export function saveWeKnoraCloudCredentials(data: InitializeWeKnoraCloudRequest): Promise<{ success: boolean; message: string }> {
   return new Promise((resolve, reject) => {
     post('/api/v1/weknoracloud/credentials', data)
@@ -182,7 +182,7 @@ export function saveWeKnoraCloudCredentials(data: InitializeWeKnoraCloudRequest)
         }
       })
       .catch((error: any) => {
-        console.error('Failed to save WeKnoraCloud credentials:', error)
+        console.error('Failed to save DataGoocan Cloud credentials:', error)
         reject(error)
       })
   })

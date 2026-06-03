@@ -56,7 +56,7 @@ type KnowledgeBase struct {
 	// their own KBs without granting them access to everyone else's.
 	// Nullable for backward compatibility with rows created before the
 	// RBAC migration backfilled the column to the tenant Owner.
-	CreatorID string `yaml:"creator_id"              json:"creator_id"              gorm:"type:varchar(36);index"`
+	CreatorID string `yaml:"creator_id"              json:"creator_id"              gorm:"type:varchar(128);index"`
 	// Chunking configuration
 	ChunkingConfig ChunkingConfig `yaml:"chunking_config"         json:"chunking_config"         gorm:"type:json"`
 	// Image processing configuration

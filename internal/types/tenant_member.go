@@ -88,7 +88,7 @@ type TenantMember struct {
 	ID uint64 `json:"id" gorm:"primaryKey;autoIncrement"`
 	// UserID references users.id. Together with TenantID forms the logical
 	// key enforced by the partial unique index uniq_user_tenant.
-	UserID string `json:"user_id" gorm:"type:varchar(36);not null;index"`
+	UserID string `json:"user_id" gorm:"type:varchar(128);not null;index"`
 	// TenantID references tenants.id.
 	TenantID uint64 `json:"tenant_id" gorm:"not null;index"`
 	// Role held by the user inside this tenant.
@@ -98,7 +98,7 @@ type TenantMember struct {
 	Status TenantMemberStatus `json:"status" gorm:"type:varchar(20);not null;default:'active'"`
 	// InvitedBy records the user ID of the admin who created this row via
 	// an invitation flow. Nil for rows created by self-service registration.
-	InvitedBy *string `json:"invited_by,omitempty" gorm:"type:varchar(36)"`
+	InvitedBy *string `json:"invited_by,omitempty" gorm:"type:varchar(128)"`
 	// JoinedAt is when the membership became active.
 	JoinedAt  time.Time      `json:"joined_at"`
 	CreatedAt time.Time      `json:"created_at"`

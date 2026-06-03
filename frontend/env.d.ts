@@ -6,3 +6,22 @@ declare module '*.vue' {
 }
 
 declare const __FRONTEND_VERSION__: string;
+
+declare module '@goocan/jssdk/api/auth' {
+  interface AuthCodeResult {
+    code: string
+  }
+
+  interface RequestAuthCodeOptions {
+    corpId: string
+    onSuccess: (result: AuthCodeResult) => void
+    onFail: (err: unknown) => void
+  }
+
+  export function requestAuthCode(options: RequestAuthCodeOptions): void
+}
+
+declare module '@goocan/jssdk/api/env' {
+  export const platform: string
+  export const device: string
+}

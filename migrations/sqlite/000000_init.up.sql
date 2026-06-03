@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     pinned_at DATETIME NULL,
     asr_config TEXT,
     vector_store_id VARCHAR(36),
-    creator_id VARCHAR(36),
+    creator_id VARCHAR(128),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     agent_config TEXT DEFAULT NULL,
     context_config TEXT DEFAULT NULL,
     agent_id VARCHAR(36),
-    user_id VARCHAR(36),
+    user_id VARCHAR(128),
     is_pinned BOOLEAN NOT NULL DEFAULT 0,
     pinned_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -217,7 +217,7 @@ CREATE INDEX IF NOT EXISTS idx_chunks_kb_tenant ON chunks(knowledge_base_id, ten
 CREATE INDEX IF NOT EXISTS idx_chunks_knowledge_enabled ON chunks(knowledge_id, is_enabled, deleted_at);
 
 CREATE TABLE IF NOT EXISTS users (
-    id VARCHAR(36) PRIMARY KEY,
+    id VARCHAR(128) PRIMARY KEY,
     username VARCHAR(100) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -241,7 +241,7 @@ CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
 
 CREATE TABLE IF NOT EXISTS auth_tokens (
     id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(128) NOT NULL,
     token TEXT NOT NULL,
     token_type VARCHAR(50) NOT NULL,
     expires_at DATETIME NOT NULL,
@@ -261,11 +261,11 @@ CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires_at ON auth_tokens(expires_at)
 -- (user_id, tenant_id) — soft-deleted rows are filtered by the GORM scope.
 CREATE TABLE IF NOT EXISTS tenant_members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(128) NOT NULL,
     tenant_id INTEGER NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'contributor',
     status VARCHAR(20) NOT NULL DEFAULT 'active',
-    invited_by VARCHAR(36),
+    invited_by VARCHAR(128),
     joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -285,12 +285,12 @@ CREATE INDEX IF NOT EXISTS idx_tenant_members_user
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tenant_id INTEGER NOT NULL,
-    actor_user_id VARCHAR(36) NOT NULL DEFAULT '',
+    actor_user_id VARCHAR(128) NOT NULL DEFAULT '',
     actor_role VARCHAR(32) NOT NULL DEFAULT '',
     action VARCHAR(64) NOT NULL,
     target_type VARCHAR(32) NOT NULL DEFAULT '',
     target_id VARCHAR(64) NOT NULL DEFAULT '',
-    target_user_id VARCHAR(36) NOT NULL DEFAULT '',
+    target_user_id VARCHAR(128) NOT NULL DEFAULT '',
     request_path VARCHAR(512) NOT NULL DEFAULT '',
     request_method VARCHAR(16) NOT NULL DEFAULT '',
     outcome VARCHAR(16) NOT NULL DEFAULT 'success',
@@ -310,7 +310,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
 -- composite PK (user_id, tenant_id, resource_type, resource_id) so the
 -- GORM model and FirstOrCreate idempotency carry over.
 CREATE TABLE IF NOT EXISTS user_resource_favorites (
-    user_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(128) NOT NULL,
     tenant_id INTEGER NOT NULL,
     resource_type VARCHAR(16) NOT NULL,
     resource_id VARCHAR(64) NOT NULL,
@@ -329,7 +329,7 @@ CREATE INDEX IF NOT EXISTS idx_user_resource_favorites_tenant_id
 -- written by the application.
 CREATE TABLE IF NOT EXISTS user_kb_pins (
     tenant_id INTEGER NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(128) NOT NULL,
     kb_id VARCHAR(36) NOT NULL,
     pinned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (tenant_id, user_id, kb_id)
@@ -343,8 +343,8 @@ CREATE INDEX IF NOT EXISTS idx_user_kb_pins_user_tenant_pinned_at
 CREATE TABLE IF NOT EXISTS tenant_invitations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tenant_id INTEGER NOT NULL,
-    invitee_user_id VARCHAR(36) NOT NULL,
-    invited_by VARCHAR(36),
+    invitee_user_id VARCHAR(128) NOT NULL,
+    invited_by VARCHAR(128),
     role VARCHAR(20) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     message VARCHAR(500),
@@ -424,7 +424,7 @@ CREATE TABLE IF NOT EXISTS custom_agents (
     avatar VARCHAR(64),
     is_builtin BOOLEAN NOT NULL DEFAULT 0,
     tenant_id INTEGER NOT NULL,
-    created_by VARCHAR(36),
+    created_by VARCHAR(128),
     runnable_by_viewer BOOLEAN NOT NULL DEFAULT 1,
     config TEXT NOT NULL DEFAULT '{}',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -441,7 +441,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    owner_id VARCHAR(36) NOT NULL,
+    owner_id VARCHAR(128) NOT NULL,
     -- Plan 3 (#1303): owning tenant pinned at create time; see migration 000046.
     owner_tenant_id INTEGER NOT NULL DEFAULT 0,
     invite_code VARCHAR(32),
@@ -465,7 +465,7 @@ CREATE TABLE IF NOT EXISTS organization_tenant_members (
     organization_id VARCHAR(36) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     tenant_id INTEGER NOT NULL,
     role VARCHAR(32) NOT NULL DEFAULT 'viewer',
-    representative_user_id VARCHAR(36) NOT NULL DEFAULT '',
+    representative_user_id VARCHAR(128) NOT NULL DEFAULT '',
     joined_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -479,7 +479,7 @@ CREATE TABLE IF NOT EXISTS kb_shares (
     id VARCHAR(36) PRIMARY KEY,
     knowledge_base_id VARCHAR(36) NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
     organization_id VARCHAR(36) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    shared_by_user_id VARCHAR(36) NOT NULL,
+    shared_by_user_id VARCHAR(128) NOT NULL,
     source_tenant_id INTEGER NOT NULL,
     permission VARCHAR(32) NOT NULL DEFAULT 'viewer',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -495,14 +495,14 @@ CREATE INDEX IF NOT EXISTS idx_kb_shares_deleted_at ON kb_shares(deleted_at);
 CREATE TABLE IF NOT EXISTS organization_join_requests (
     id VARCHAR(36) PRIMARY KEY,
     organization_id VARCHAR(36) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    user_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(128) NOT NULL,
     tenant_id INTEGER NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'pending',
     requested_role VARCHAR(32) NOT NULL DEFAULT 'viewer',
     request_type VARCHAR(32) NOT NULL DEFAULT 'join',
     prev_role VARCHAR(32),
     message TEXT,
-    reviewed_by VARCHAR(36),
+    reviewed_by VARCHAR(128),
     reviewed_at DATETIME,
     review_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -522,7 +522,7 @@ CREATE TABLE IF NOT EXISTS agent_shares (
     id VARCHAR(36) PRIMARY KEY,
     agent_id VARCHAR(36) NOT NULL,
     organization_id VARCHAR(36) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    shared_by_user_id VARCHAR(36) NOT NULL,
+    shared_by_user_id VARCHAR(128) NOT NULL,
     source_tenant_id INTEGER NOT NULL,
     permission VARCHAR(32) NOT NULL DEFAULT 'viewer',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

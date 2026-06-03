@@ -83,7 +83,7 @@ type Session struct {
 	TenantID uint64 `json:"tenant_id"   gorm:"index"`
 	// UserID is the owner of the session. Empty for legacy rows (visible at
 	// tenant level) and for IM-created sessions that do not map to a WeKnora user.
-	UserID string `json:"user_id,omitempty" gorm:"type:varchar(36);index"`
+	UserID string `json:"user_id,omitempty" gorm:"type:varchar(128);index"`
 	// IsPinned indicates whether the session is pinned in the list.
 	IsPinned bool `json:"is_pinned" gorm:"default:false"`
 	// PinnedAt records when the session was pinned; nil when not pinned.

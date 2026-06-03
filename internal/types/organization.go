@@ -68,7 +68,7 @@ type Organization struct {
 	// Avatar URL for display in list and settings
 	Avatar string `json:"avatar" gorm:"type:varchar(512)"`
 	// User ID of the organization owner
-	OwnerID string `json:"owner_id" gorm:"type:varchar(36);not null;index"`
+	OwnerID string `json:"owner_id" gorm:"type:varchar(128);not null;index"`
 	// OwnerTenantID is the tenant the owner belonged to when the
 	// organization was created. Plan 3 (#1303) treats this tenant as
 	// the org's "owning tenant": its membership row in
@@ -117,13 +117,13 @@ type OrganizationTenantMember struct {
 	OrganizationID       string        `json:"organization_id" gorm:"type:varchar(36);not null;index"`
 	TenantID             uint64        `json:"tenant_id" gorm:"not null;index"`
 	Role                 OrgMemberRole `json:"role" gorm:"type:varchar(32);not null;default:'viewer'"`
-	RepresentativeUserID string        `json:"representative_user_id" gorm:"type:varchar(36);default:''"`
+	RepresentativeUserID string        `json:"representative_user_id" gorm:"type:varchar(128);default:''"`
 	JoinedAt             *time.Time    `json:"joined_at"`
 	CreatedAt            time.Time     `json:"created_at"`
 	UpdatedAt            time.Time     `json:"updated_at"`
 
-	Organization        *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
-	RepresentativeUser  *User         `json:"representative_user,omitempty" gorm:"foreignKey:RepresentativeUserID"`
+	Organization       *Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID"`
+	RepresentativeUser *User         `json:"representative_user,omitempty" gorm:"foreignKey:RepresentativeUserID"`
 }
 
 // TableName returns the table name for GORM
@@ -157,7 +157,7 @@ type OrganizationJoinRequest struct {
 	// Organization ID
 	OrganizationID string `json:"organization_id" gorm:"type:varchar(36);not null;index"`
 	// User ID of the requester
-	UserID string `json:"user_id" gorm:"type:varchar(36);not null;index"`
+	UserID string `json:"user_id" gorm:"type:varchar(128);not null;index"`
 	// Tenant ID of the requester
 	TenantID uint64 `json:"tenant_id" gorm:"not null"`
 	// Type of request: 'join' for new member, 'upgrade' for role upgrade
@@ -171,7 +171,7 @@ type OrganizationJoinRequest struct {
 	// Optional message from the requester
 	Message string `json:"message" gorm:"type:text"`
 	// User ID of the admin who reviewed the request
-	ReviewedBy string `json:"reviewed_by" gorm:"type:varchar(36)"`
+	ReviewedBy string `json:"reviewed_by" gorm:"type:varchar(128)"`
 	// Time when the request was reviewed
 	ReviewedAt *time.Time `json:"reviewed_at"`
 	// Optional message from the reviewer
@@ -201,7 +201,7 @@ type KnowledgeBaseShare struct {
 	// Organization ID receiving the share
 	OrganizationID string `json:"organization_id" gorm:"type:varchar(36);not null;index"`
 	// User ID who shared the knowledge base
-	SharedByUserID string `json:"shared_by_user_id" gorm:"type:varchar(36);not null"`
+	SharedByUserID string `json:"shared_by_user_id" gorm:"type:varchar(128);not null"`
 	// Original tenant ID of the knowledge base (for cross-tenant embedding model access)
 	SourceTenantID uint64 `json:"source_tenant_id" gorm:"not null;index"`
 	// Permission level (admin/editor/viewer)
@@ -239,7 +239,7 @@ type AgentShare struct {
 	ID             string         `json:"id" gorm:"type:varchar(36);primaryKey"`
 	AgentID        string         `json:"agent_id" gorm:"type:varchar(36);not null;index"`
 	OrganizationID string         `json:"organization_id" gorm:"type:varchar(36);not null;index"`
-	SharedByUserID string         `json:"shared_by_user_id" gorm:"type:varchar(36);not null"`
+	SharedByUserID string         `json:"shared_by_user_id" gorm:"type:varchar(128);not null"`
 	SourceTenantID uint64         `json:"source_tenant_id" gorm:"not null;index"`
 	Permission     OrgMemberRole  `json:"permission" gorm:"type:varchar(32);not null;default:'viewer'"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -256,15 +256,15 @@ func (AgentShare) TableName() string {
 
 // SharedAgentInfo represents a shared agent with additional sharing info
 type SharedAgentInfo struct {
-	Agent             *CustomAgent  `json:"agent"`
-	ShareID           string        `json:"share_id"`
-	OrganizationID    string        `json:"organization_id"`
-	OrgName           string        `json:"org_name"`
-	Permission        OrgMemberRole `json:"permission"`
-	SourceTenantID    uint64        `json:"source_tenant_id"`
-	SharedAt          time.Time     `json:"shared_at"`
-	SharedByUserID    string        `json:"shared_by_user_id,omitempty"`
-	SharedByUsername  string        `json:"shared_by_username,omitempty"`
+	Agent            *CustomAgent  `json:"agent"`
+	ShareID          string        `json:"share_id"`
+	OrganizationID   string        `json:"organization_id"`
+	OrgName          string        `json:"org_name"`
+	Permission       OrgMemberRole `json:"permission"`
+	SourceTenantID   uint64        `json:"source_tenant_id"`
+	SharedAt         time.Time     `json:"shared_at"`
+	SharedByUserID   string        `json:"shared_by_user_id,omitempty"`
+	SharedByUsername string        `json:"shared_by_username,omitempty"`
 	// DisabledByMe: current tenant has hidden this shared agent from their conversation dropdown (per-user preference)
 	DisabledByMe bool `json:"disabled_by_me"`
 }
@@ -280,7 +280,7 @@ type SourceFromAgentInfo struct {
 // When SourceFromAgent is set, the KB is from a shared agent's config (no direct KB share); show as read-only and "来自智能体 XXX".
 type OrganizationSharedKnowledgeBaseItem struct {
 	SharedKnowledgeBaseInfo
-	IsMine          bool                `json:"is_mine"`
+	IsMine          bool                 `json:"is_mine"`
 	SourceFromAgent *SourceFromAgentInfo `json:"source_from_agent,omitempty"`
 }
 
@@ -453,12 +453,12 @@ type OrganizationMemberResponse struct {
 // caused this tenant to show up in the search). Multiple users may belong
 // to the same tenant; deduplication is by TenantID.
 type TenantInviteCandidate struct {
-	TenantID                uint64 `json:"tenant_id"`
-	TenantName              string `json:"tenant_name"`
-	RepresentativeUserID    string `json:"representative_user_id"`
-	RepresentativeUsername  string `json:"representative_username"`
-	RepresentativeEmail     string `json:"representative_email"`
-	RepresentativeAvatar    string `json:"representative_avatar,omitempty"`
+	TenantID               uint64 `json:"tenant_id"`
+	TenantName             string `json:"tenant_name"`
+	RepresentativeUserID   string `json:"representative_user_id"`
+	RepresentativeUsername string `json:"representative_username"`
+	RepresentativeEmail    string `json:"representative_email"`
+	RepresentativeAvatar   string `json:"representative_avatar,omitempty"`
 }
 
 // KnowledgeBaseShareResponse represents a share record in API responses
@@ -496,10 +496,10 @@ type AgentShareResponse struct {
 	MyPermission     string    `json:"my_permission,omitempty"`
 	CreatedAt        time.Time `json:"created_at"`
 	// Agent scope summary for list display (from agent config when available)
-	ScopeKB        string `json:"scope_kb,omitempty"`        // "all" | "selected" | "none"
+	ScopeKB        string `json:"scope_kb,omitempty"`       // "all" | "selected" | "none"
 	ScopeKBCount   int    `json:"scope_kb_count,omitempty"` // when selected
 	ScopeWebSearch bool   `json:"scope_web_search,omitempty"`
-	ScopeMCP       string `json:"scope_mcp,omitempty"`        // "all" | "selected" | "none"
+	ScopeMCP       string `json:"scope_mcp,omitempty"`       // "all" | "selected" | "none"
 	ScopeMCPCount  int    `json:"scope_mcp_count,omitempty"` // when selected
 	// Agent avatar (emoji or icon name) for list display
 	AgentAvatar string `json:"agent_avatar,omitempty"`
@@ -507,8 +507,8 @@ type AgentShareResponse struct {
 
 // ListOrganizationsResponse represents the response for listing organizations
 type ListOrganizationsResponse struct {
-	Organizations  []OrganizationResponse     `json:"organizations"`
-	Total          int64                      `json:"total"`
+	Organizations  []OrganizationResponse       `json:"organizations"`
+	Total          int64                        `json:"total"`
 	ResourceCounts *ResourceCountsByOrgResponse `json:"resource_counts,omitempty"` // 各空间内知识库/智能体数量，供列表侧栏展示
 }
 
