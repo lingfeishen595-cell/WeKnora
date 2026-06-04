@@ -186,52 +186,109 @@
                 <template #prefix-icon><t-icon name="search" /></template>
               </t-input>
             </div>
-            <t-popup v-if="canManage" v-model="invitePopupVisible" trigger="click" placement="bottom-end"
-              destroy-on-close overlay-class-name="member-invite-popup-overlay">
-              <t-button theme="primary" variant="outline" shape="square" size="small" class="members-list-add-btn"
-                :title="$t('tenantMember.add.button')" :aria-label="$t('tenantMember.add.button')">
-                <template #icon><t-icon name="user-add" /></template>
-              </t-button>
-              <template #content>
-                <div class="member-invite-popup-inner" @click.stop>
-                  <div class="member-invite-popup-title">
-                    {{
-                      addDialogStep === 'form'
-                        ? $t('tenantMember.add.dialogTitle')
-                        : $t('tenantInvitation.confirmInviteTitle')
-                    }}
-                  </div>
-                  <t-form v-if="addDialogStep === 'form'" ref="addFormRef" :data="addForm" :rules="addFormRules"
-                    :label-width="80" class="member-invite-form">
-                    <t-form-item :label="$t('tenantMember.add.emailLabel')" name="email">
-                      <t-input v-model="addForm.email" :placeholder="$t('tenantMember.add.emailPlaceholder')"
-                        clearable />
-                    </t-form-item>
-                    <t-form-item :label="$t('tenantMember.add.roleLabel')" name="role">
-                      <t-select v-model="addForm.role" :options="roleOptions" :popup-props="roleSelectPopupProps" />
-                    </t-form-item>
-                  </t-form>
-                  <div v-else class="invite-confirm-body">
-                    {{ $t('tenantInvitation.confirmInviteBody', {
-                      email: addConfirmEmail,
-                      role: addConfirmRoleLabel,
-                    }) }}
-                  </div>
-                  <div class="invite-popup-footer">
-                    <t-button v-if="addDialogStep === 'form'" variant="outline" :disabled="adding"
-                      @click="invitePopupVisible = false">
-                      {{ $t('common.cancel') }}
-                    </t-button>
-                    <t-button v-else variant="outline" :disabled="adding" @click="goBackToForm">
-                      {{ $t('common.back') }}
-                    </t-button>
-                    <t-button theme="primary" :loading="adding" @click="submitAdd">
-                      {{ dialogConfirmLabel }}
-                    </t-button>
-                  </div>
+            <t-button v-if="canManage" theme="primary" variant="outline" shape="square" size="small"
+              class="members-list-add-btn" :title="$t('tenantMember.add.button')"
+              :aria-label="$t('tenantMember.add.button')" @click="invitePopupVisible = true">
+              <template #icon><t-icon name="user-add" /></template>
+            </t-button>
+
+            <t-dialog v-model:visible="invitePopupVisible" :header="$t('tenantMember.add.dialogTitle')"
+              :destroy-on-close="false" width="900px" top="8vh" dialog-class-name="goocan-member-picker-dialog"
+              :confirm-btn="{
+                content: $t('common.confirm'),
+                theme: 'primary',
+                loading: adding,
+                disabled: selectedGoocanUsers.length === 0,
+              }" :cancel-btn="{ content: $t('common.cancel'), variant: 'outline' }"
+              @confirm="submitAdd" @cancel="invitePopupVisible = false">
+              <div class="goocan-member-picker">
+                <div class="goocan-member-picker__search">
+                  <t-select v-model="goocanPickerSearchType" size="small" class="goocan-member-picker__search-type"
+                    :options="goocanSearchTypeOptions" :popup-props="{ overlayClassName: 'tenant-members-role-select-popup' }" />
+                  <t-input v-model="goocanPickerSearchQuery" size="small" clearable
+                    :placeholder="$t('tenantMember.add.searchPlaceholder')" @enter="loadGoocanPickerUsers">
+                    <template #prefix-icon><t-icon name="search" /></template>
+                  </t-input>
+                  <t-button theme="primary" variant="outline" size="small" @click="loadGoocanPickerUsers">
+                    {{ $t('common.search') }}
+                  </t-button>
                 </div>
-              </template>
-            </t-popup>
+                <div class="goocan-member-picker__role">
+                  <span class="goocan-member-picker__role-label">{{ $t('tenantMember.add.roleLabel') }}</span>
+                  <t-select v-model="addForm.role" size="small" :options="roleOptions"
+                    :popup-props="roleSelectPopupProps" />
+                </div>
+                <div class="goocan-member-picker__content">
+                  <section class="goocan-member-picker__left">
+                    <div class="goocan-member-picker__breadcrumb">
+                      <button type="button" class="goocan-member-picker__crumb"
+                        @click="resetGoocanPickerDept">
+                        {{ $t('tenantMember.add.departmentTitle') }}
+                      </button>
+                      <template v-if="currentGoocanDeptName">
+                        <span class="goocan-member-picker__crumb-separator">/</span>
+                        <span class="goocan-member-picker__crumb-current">{{ currentGoocanDeptName }}</span>
+                      </template>
+                    </div>
+                    <div class="goocan-member-picker__list">
+                      <div v-if="goocanPickerLoading" class="goocan-picker-state">
+                        <t-loading size="small" />
+                        <span>{{ $t('tenantMember.loading') }}</span>
+                      </div>
+                      <div v-else-if="goocanPickerError" class="goocan-picker-state goocan-picker-state--error">
+                        {{ goocanPickerError }}
+                      </div>
+                      <div v-else-if="goocanPickerUsers.length === 0" class="goocan-picker-state">
+                        {{ $t('tenantMember.add.noGoocanUsers') }}
+                      </div>
+                      <template v-else>
+                        <button v-for="node in goocanPickerUsers" :key="goocanNodeID(node)"
+                          type="button" :class="['goocan-picker-row', {
+                            'is-selected': isGoocanNodeSelected(node),
+                            'is-disabled': isGoocanNodeExistingMember(node),
+                          }]" @click="isGoocanDeptNode(node) ? enterGoocanDept(node) : toggleGoocanNode(node)">
+                          <t-checkbox class="goocan-picker-checkbox" size="small"
+                            :checked="isGoocanNodeSelected(node)"
+                            :disabled="isGoocanDeptNode(node) || isGoocanNodeExistingMember(node)"
+                            @click.stop
+                            @change="() => toggleGoocanNode(node)" />
+                          <span :class="['goocan-picker-avatar', { 'is-dept': isGoocanDeptNode(node) }]">
+                            <t-icon v-if="isGoocanDeptNode(node)" name="usergroup" />
+                            <img v-else-if="goocanNodeAvatar(node)" :src="goocanNodeAvatar(node)" alt=""
+                              @error="markGoocanAvatarFailed(node)" />
+                            <span v-else class="goocan-picker-avatar__fallback">{{ goocanNodeInitial(node) }}</span>
+                          </span>
+                          <span class="goocan-picker-main">
+                            <span class="goocan-picker-name">{{ goocanNodeDisplayTitle(node) }}</span>
+                          </span>
+                          <button v-if="isGoocanDeptNode(node)" type="button"
+                            class="goocan-picker-sub-link" @click.stop="enterGoocanDept(node)">
+                            {{ $t('tenantMember.add.nextLevel') }}
+                          </button>
+                          <t-tag v-else-if="isGoocanNodeExistingMember(node)" size="small" theme="default" variant="light">
+                            {{ $t('tenantMember.add.alreadyInSpace') }}
+                          </t-tag>
+                        </button>
+                      </template>
+                    </div>
+                  </section>
+                  <section class="goocan-member-picker__right">
+                    <div class="goocan-member-picker__selected-title">
+                      {{ $t('tenantMember.add.selectedTitle') }}
+                    </div>
+                    <div v-if="selectedGoocanUsers.length === 0" class="goocan-picker-state goocan-picker-state--selected">
+                      {{ $t('tenantMember.add.selectedEmpty') }}
+                    </div>
+                    <div v-else class="goocan-picker-selected-list">
+                      <t-tag v-for="node in selectedGoocanUsers" :key="goocanNodeID(node)" closable
+                        theme="primary" variant="light" @close="removeSelectedGoocanNode(node)">
+                        {{ goocanNodeDisplayTitle(node) }}
+                      </t-tag>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </t-dialog>
             <!-- Share-link generator. Sits next to the invite-by-email
                  popup so the two flows live side-by-side: "I know who"
                  (email input) vs "I don't" (one link, group chat). -->
@@ -504,8 +561,11 @@ import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { copyTextToClipboard } from '@/utils/chatMessageShared'
 import {
   listMembers,
+  fetchAllTenantMembers,
+  addGoocanMembers,
   updateMemberRole,
   removeMember,
   type TenantMember,
@@ -513,11 +573,16 @@ import {
 } from '@/api/tenant/members'
 import {
   listTenantInvitations,
-  createInvitation,
   createInviteLink,
   revokeInvitation,
   type TenantInvitation,
 } from '@/api/tenant/invitations'
+import {
+  queryGoocanUserTree,
+  getGoocanPickerDefaultCorpId,
+  getGoocanPickerProjectId,
+  type GoocanUserPickerNode,
+} from '@/api/goocan-users'
 import {
   listAuditLog,
   type AuditLog,
@@ -552,10 +617,6 @@ const shareLinkPopupVisible = ref(false)
 const shareLinkForm = reactive<{ role: TenantRole }>({ role: 'contributor' })
 const creatingShareLink = ref(false)
 const shareLinkResult = ref<TenantInvitation | null>(null)
-// Two-step invite inside the popup: 'form' renders the email/role inputs;
-// 'confirm' swaps the body for an in-place summary; primary CTA toggles label.
-const addDialogStep = ref<'form' | 'confirm'>('form')
-const addFormRef = ref<any>(null)
 const searchQuery = ref('')
 /** 已应用到服务端筛选的检索词（相对输入框防抖） */
 const memberSearchQ = ref('')
@@ -615,13 +676,34 @@ const auditLoadSentinelEl = ref<HTMLElement | null>(null)
 let auditScrollObserver: IntersectionObserver | null = null
 
 // Add dialog model — reset on each open. Default role is contributor:
-// inviting a fresh member with viewer is too restrictive for the
+// adding a fresh member with viewer is too restrictive for the
 // expected "let them collaborate on KBs" use case, and admin/owner
 // should be a deliberate promote step after the user accepts.
-const addForm = reactive<{ email: string; role: TenantRole }>({
-  email: '',
+const addForm = reactive<{ role: TenantRole }>({
   role: 'contributor',
 })
+
+type GoocanSearchType = 'name' | 'workNumber' | 'dept'
+
+const GOOCAN_DEPT_NODE_TYPE = '1356'
+const GOOCAN_STAFF_NODE_TYPE = '1357'
+const GOOCAN_QUERY_TYPE_DEPT = '1494'
+const GOOCAN_QUERY_LIKE_TYPE: Record<GoocanSearchType, number> = {
+  name: 4289,
+  workNumber: 4290,
+  dept: 4291,
+}
+const GOOCAN_PICKER_MAX = 50
+const goocanPickerSearchQuery = ref('')
+const goocanPickerSearchType = ref<GoocanSearchType>('name')
+const goocanPickerLoading = ref(false)
+const goocanPickerError = ref('')
+const goocanPickerUsers = ref<GoocanUserPickerNode[]>([])
+const selectedGoocanUsers = ref<GoocanUserPickerNode[]>([])
+const allTenantMemberIds = ref<Set<string>>(new Set())
+const currentGoocanDeptId = ref('')
+const currentGoocanDeptName = ref('')
+let goocanPickerSearchTimer: number | undefined
 
 // Role-aware gates. The server enforces every mutation; UI gates here
 // are presentational only, matching the security note in stores/auth.ts.
@@ -655,6 +737,12 @@ const roleOptions = computed(() => [
   { label: t('tenantMember.role.admin'), value: 'admin' },
   { label: t('tenantMember.role.contributor'), value: 'contributor' },
   { label: t('tenantMember.role.viewer'), value: 'viewer' },
+])
+
+const goocanSearchTypeOptions = computed(() => [
+  { label: t('tenantMember.add.searchTypeName'), value: 'name' },
+  { label: t('tenantMember.add.searchTypeWorkNumber'), value: 'workNumber' },
+  { label: t('tenantMember.add.searchTypeDepartment'), value: 'dept' },
 ])
 
 /** 下拉层须高于邀请浮层（3050）与组织设置全屏遮罩，否则会被压住 */
@@ -730,14 +818,6 @@ function memberSecondary(row: { username?: string; email?: string }) {
   const mail = row.email?.trim()
   if (name && mail) return mail
   return ''
-}
-
-const addFormRules = {
-  email: [
-    { required: true, message: t('tenantMember.errors.emailRequired'), trigger: 'blur' },
-    { email: true, message: t('tenantMember.errors.emailFormat'), trigger: 'blur' },
-  ],
-  role: [{ required: true, message: t('tenantMember.errors.roleRequired'), trigger: 'change' }],
 }
 
 // Pretty role tag colour: Owner stands out, Admin is warning, the rest
@@ -1227,13 +1307,38 @@ watch(
   { flush: 'post' },
 )
 
-onUnmounted(() => detachAuditInfiniteScroll())
+onUnmounted(() => {
+  detachAuditInfiniteScroll()
+  window.clearTimeout(goocanPickerSearchTimer)
+})
 
-watch(invitePopupVisible, (open) => {
+watch(invitePopupVisible, async (open) => {
+  window.clearTimeout(goocanPickerSearchTimer)
   if (!open) return
-  addForm.email = ''
   addForm.role = 'contributor'
-  addDialogStep.value = 'form'
+  goocanPickerSearchQuery.value = ''
+  goocanPickerSearchType.value = 'name'
+  goocanPickerUsers.value = []
+  selectedGoocanUsers.value = []
+  goocanPickerError.value = ''
+  currentGoocanDeptId.value = ''
+  currentGoocanDeptName.value = ''
+  await refreshAllTenantMemberIds()
+  await loadGoocanPickerUsers()
+})
+
+watch(goocanPickerSearchQuery, () => {
+  if (!invitePopupVisible.value) return
+  window.clearTimeout(goocanPickerSearchTimer)
+  goocanPickerSearchTimer = window.setTimeout(() => {
+    void loadGoocanPickerUsers()
+  }, 420)
+})
+
+watch(goocanPickerSearchType, () => {
+  if (!invitePopupVisible.value) return
+  window.clearTimeout(goocanPickerSearchTimer)
+  void loadGoocanPickerUsers()
 })
 
 // Share-link popup: re-init on every open so the operator never sees
@@ -1258,7 +1363,7 @@ function absoluteInviteURL(raw: string): string {
 async function copyText(text: string) {
   if (!text) return
   try {
-    await navigator.clipboard.writeText(text)
+    await copyTextToClipboard(text)
     MessagePlugin.success(t('tenantInvitation.copied'))
   } catch {
     MessagePlugin.error(t('tenantInvitation.copyFailed'))
@@ -1283,69 +1388,186 @@ async function submitShareLink() {
   }
 }
 
-// Live display strings for the in-place confirm step. Recomputed
-// every time the user goes Back, tweaks the form, and re-advances —
-// the summary always mirrors the current form state.
-const addConfirmEmail = computed(() => addForm.email.trim())
-const addConfirmRoleLabel = computed(() => t('tenantMember.role.' + addForm.role))
+async function refreshAllTenantMemberIds() {
+  if (!activeTenantId.value) return
+  try {
+    const rows = await fetchAllTenantMembers(activeTenantId.value)
+    allTenantMemberIds.value = new Set(rows.map((m) => m.user_id))
+  } catch {
+    allTenantMemberIds.value = new Set(members.value.map((m) => m.user_id))
+  }
+}
 
-// submitAdd is wired to the popup footer primary CTA. On step='form' it
-// validates and swaps to summary; on step='confirm' it fires the API.
-async function submitAdd() {
-  if (addDialogStep.value === 'form') {
-    const valid = await addFormRef.value?.validate?.()
-    if (valid !== true) return
-    addDialogStep.value = 'confirm'
+function goocanNodeID(node: GoocanUserPickerNode): string {
+  return String(node.node_id || node.node_middle_id || '').trim()
+}
+
+function goocanNodeName(node: GoocanUserPickerNode): string {
+  return node.node_name?.trim() || node.name?.trim() || node.node_number?.trim() || node.job_number?.trim() || goocanNodeID(node)
+}
+
+function goocanNodeNumber(node: GoocanUserPickerNode): string {
+  return String(node.node_number || node.job_number || '').trim()
+}
+
+function goocanNodeMeta(node: GoocanUserPickerNode): string {
+  return goocanNodeNumber(node)
+}
+
+function goocanNodeTitle(node: GoocanUserPickerNode): string {
+  const name = goocanNodeName(node)
+  const number = goocanNodeMeta(node)
+  if (isGoocanDeptNode(node)) {
+    return number ? `${name}(${number}人)` : name
+  }
+  return name
+}
+
+function goocanNodeDisplayTitle(node: GoocanUserPickerNode): string {
+  const name = goocanNodeName(node)
+  const number = goocanNodeMeta(node)
+  if (isGoocanDeptNode(node)) {
+    return goocanNodeTitle(node)
+  }
+  return number ? `${name}（${number}）` : name
+}
+
+function goocanNodeInitial(node: GoocanUserPickerNode): string {
+  const name = goocanNodeName(node)
+  return name ? name.slice(0, 1).toUpperCase() : '人'
+}
+
+function goocanNodeAvatar(node: GoocanUserPickerNode): string {
+  return String(node.user_avatar || '').trim()
+}
+
+function markGoocanAvatarFailed(node: GoocanUserPickerNode) {
+  node.user_avatar = ''
+}
+
+function isGoocanDeptNode(node: GoocanUserPickerNode): boolean {
+  return node.node_type === GOOCAN_DEPT_NODE_TYPE && goocanNodeID(node) !== ''
+}
+
+function isGoocanStaffNode(node: GoocanUserPickerNode): boolean {
+  return node.node_type === GOOCAN_STAFF_NODE_TYPE && goocanNodeID(node) !== ''
+}
+
+function isGoocanNodeExistingMember(node: GoocanUserPickerNode): boolean {
+  return allTenantMemberIds.value.has(goocanNodeID(node))
+}
+
+function isGoocanNodeSelected(node: GoocanUserPickerNode): boolean {
+  const id = goocanNodeID(node)
+  return selectedGoocanUsers.value.some((x) => goocanNodeID(x) === id)
+}
+
+function toggleGoocanNode(node: GoocanUserPickerNode) {
+  if (!isGoocanStaffNode(node) || isGoocanNodeExistingMember(node)) return
+  const id = goocanNodeID(node)
+  if (!id) return
+  const idx = selectedGoocanUsers.value.findIndex((x) => goocanNodeID(x) === id)
+  if (idx >= 0) {
+    selectedGoocanUsers.value.splice(idx, 1)
     return
   }
-  await sendInvitation(addForm.email.trim(), addForm.role)
+  if (selectedGoocanUsers.value.length >= GOOCAN_PICKER_MAX) {
+    MessagePlugin.warning(t('tenantMember.add.maxSelected', { max: GOOCAN_PICKER_MAX }))
+    return
+  }
+  selectedGoocanUsers.value.push(node)
 }
 
-// goBackToForm un-advances from confirm to form inside the popup.
-function goBackToForm() {
-  addDialogStep.value = 'form'
+async function enterGoocanDept(node: GoocanUserPickerNode) {
+  if (!isGoocanDeptNode(node)) return
+  currentGoocanDeptId.value = goocanNodeID(node)
+  currentGoocanDeptName.value = goocanNodeName(node)
+  goocanPickerSearchQuery.value = ''
+  await loadGoocanPickerUsers()
 }
 
-// dialogConfirmLabel drives the primary action label across the two steps.
-const dialogConfirmLabel = computed(() =>
-  addDialogStep.value === 'form'
-    ? t('tenantInvitation.inviteSubmit')
-    : t('tenantInvitation.confirmSend'),
-)
+async function resetGoocanPickerDept() {
+  currentGoocanDeptId.value = ''
+  currentGoocanDeptName.value = ''
+  await loadGoocanPickerUsers()
+}
 
-// sendInvitation actually fires the create-invitation API call.
-async function sendInvitation(email: string, role: TenantRole) {
+function removeSelectedGoocanNode(node: GoocanUserPickerNode) {
+  const id = goocanNodeID(node)
+  selectedGoocanUsers.value = selectedGoocanUsers.value.filter((x) => goocanNodeID(x) !== id)
+}
+
+async function loadGoocanPickerUsers() {
+  goocanPickerLoading.value = true
+  goocanPickerError.value = ''
+  try {
+    const rows = await queryGoocanUserTree({
+      keyword: goocanPickerSearchQuery.value,
+      queryLikeType: GOOCAN_QUERY_LIKE_TYPE[goocanPickerSearchType.value],
+      queryType: GOOCAN_QUERY_TYPE_DEPT,
+      deptId: currentGoocanDeptId.value,
+      corpId: getGoocanPickerDefaultCorpId(),
+      projectId: getGoocanPickerProjectId(),
+    })
+    const dedup = new Map<string, GoocanUserPickerNode>()
+    for (const row of rows || []) {
+      if (!isGoocanStaffNode(row) && !isGoocanDeptNode(row)) continue
+      const id = goocanNodeID(row)
+      if (!dedup.has(id)) dedup.set(id, row)
+    }
+    goocanPickerUsers.value = Array.from(dedup.values())
+  } catch (err: any) {
+    goocanPickerError.value = err?.message || t('tenantMember.add.goocanSearchFailed')
+    goocanPickerUsers.value = []
+  } finally {
+    goocanPickerLoading.value = false
+  }
+}
+
+async function submitAdd() {
+  const selected = selectedGoocanUsers.value.filter((node) => {
+    const id = goocanNodeID(node)
+    return id && !allTenantMemberIds.value.has(id)
+  })
+  if (selected.length === 0) {
+    MessagePlugin.warning(t('tenantMember.add.selectRequired'))
+    return
+  }
   adding.value = true
   try {
-    const resp = await createInvitation(activeTenantId.value, { email, role })
-    if (resp.success) {
-      invitationsPage.value = 1
-      await loadInvitations()
-      invitePopupVisible.value = false
-      MessagePlugin.success(t('tenantInvitation.inviteSuccess'))
-    } else {
-      MessagePlugin.error(resp.message || t('tenantInvitation.errors.generic'))
+    const resp = await addGoocanMembers(activeTenantId.value, {
+      role: addForm.role,
+      users: selected.map((node) => ({
+        user_id: goocanNodeID(node),
+        user_code: node.node_number || node.job_number || '',
+        user_name: goocanNodeName(node),
+        user_email: '',
+        user_avatar: goocanNodeAvatar(node),
+        corp_id: getGoocanPickerDefaultCorpId(),
+        project_id: getGoocanPickerProjectId(),
+      })),
+    })
+    if (!resp.success || !resp.data) {
+      MessagePlugin.error(resp.message || t('tenantMember.add.batchAddFailed'))
+      return
+    }
+    const added = resp.data.added?.length || 0
+    const already = resp.data.already_member?.length || 0
+    const failed = resp.data.failed?.length || 0
+    membersPage.value = 1
+    invitationsPage.value = 1
+    await Promise.all([loadMembers(), loadInvitations()])
+    invitePopupVisible.value = false
+    MessagePlugin.success(t('tenantMember.add.batchAddSummary', { added, already, failed }))
+    if (failed > 0) {
+      MessagePlugin.warning(
+        resp.data.failed
+          .map((x) => `${x.user_name || x.user_id || '-'}: ${x.message || t('common.failed')}`)
+          .join('；'),
+      )
     }
   } catch (err: any) {
-    const status = err?.status
-    if (status === 404) {
-      MessagePlugin.error(t('tenantMember.errors.userNotFound'))
-    } else if (status === 409) {
-      // Server returns the same 409 for both "already a member" and
-      // "already a pending invite". The message body discriminates,
-      // but for the toast we show both possibilities folded into one
-      // helpful line.
-      MessagePlugin.error(
-        err?.message ||
-        `${t('tenantInvitation.errors.alreadyMember')} / ${t(
-          'tenantInvitation.errors.pendingExists',
-        )}`,
-      )
-    } else if (status === 400) {
-      MessagePlugin.error(err?.message || t('tenantMember.errors.invalidRole'))
-    } else {
-      MessagePlugin.error(err?.message || t('tenantInvitation.errors.generic'))
-    }
+    MessagePlugin.error(err?.message || t('tenantMember.add.batchAddFailed'))
   } finally {
     adding.value = false
   }
@@ -1938,6 +2160,271 @@ watch(
   }
 }
 
+.goocan-member-picker {
+  display: flex;
+  flex-direction: column;
+  height: min(620px, calc(100vh - 220px));
+  min-height: 460px;
+  color: var(--td-text-color-primary);
+  background: var(--td-bg-color-container);
+  box-sizing: border-box;
+}
+
+.goocan-member-picker__search {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.goocan-member-picker__role {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.goocan-member-picker__role-label {
+  font-size: 14px;
+  color: var(--td-text-color-primary);
+}
+
+.goocan-member-picker__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  padding-top: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.goocan-member-picker__left,
+.goocan-member-picker__right {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.goocan-member-picker__left {
+  padding-right: 18px;
+  border-right: 1px solid var(--td-component-stroke);
+}
+
+.goocan-member-picker__right {
+  padding-top: 2px;
+}
+
+.goocan-member-picker__search-type {
+  width: 128px;
+}
+
+.goocan-member-picker__breadcrumb {
+  flex: 0 0 auto;
+  min-height: 24px;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+}
+
+.goocan-member-picker__crumb {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--td-text-color-secondary);
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.goocan-member-picker__crumb:hover {
+  color: var(--td-brand-color);
+}
+
+.goocan-member-picker__crumb-current,
+.goocan-member-picker__crumb-separator {
+  color: var(--td-text-color-primary);
+}
+
+.goocan-member-picker__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.goocan-member-picker__selected-title {
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+}
+
+.goocan-picker-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 160px;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--td-text-color-placeholder);
+  text-align: center;
+}
+
+.goocan-picker-state--selected {
+  flex: 1 1 auto;
+  height: auto;
+}
+
+.goocan-picker-state--error {
+  color: var(--td-error-color);
+}
+
+.goocan-picker-row {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--td-radius-medium);
+  background: transparent;
+  color: var(--td-text-color-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.goocan-picker-row:hover:not(.is-disabled) {
+  background: var(--td-bg-color-container-hover);
+}
+
+.goocan-picker-row.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.goocan-picker-checkbox {
+  flex: 0 0 auto;
+}
+
+.goocan-picker-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--td-brand-color-light);
+  color: var(--td-brand-color);
+  font-size: 14px;
+  font-weight: 600;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.goocan-picker-avatar.is-dept {
+  border-radius: var(--td-radius-medium);
+  background: var(--td-bg-color-component);
+  color: var(--td-text-color-secondary);
+  font-size: 18px;
+}
+
+.goocan-picker-avatar__fallback {
+  line-height: 1;
+}
+
+.goocan-picker-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+
+.goocan-picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--td-text-color-primary);
+}
+
+.goocan-picker-sub-link {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--td-brand-color);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.goocan-picker-sub-link:hover {
+  color: var(--td-brand-color-active);
+}
+
+.goocan-picker-selected-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+  overflow-y: auto;
+}
+
+.goocan-picker-selected-list .t-tag {
+  max-width: 100%;
+  min-height: 26px;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .goocan-member-picker {
+    height: min(620px, calc(100vh - 180px));
+  }
+
+  .goocan-member-picker__search,
+  .goocan-member-picker__role,
+  .goocan-member-picker__content {
+    grid-template-columns: 1fr;
+  }
+
+  .goocan-member-picker__search-type {
+    width: 100%;
+  }
+
+  .goocan-member-picker__left {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .goocan-member-picker__right {
+    min-height: 140px;
+    padding-top: 14px;
+    border-top: 1px solid var(--td-component-stroke);
+  }
+}
+
 .invite-confirm-body {
   padding: 4px 0 8px;
   color: var(--td-text-color-primary);
@@ -2299,6 +2786,21 @@ watch(
 
 <style lang="less">
 /* t-popup 挂到 body，需全局样式；z-index 需高于设置全屏遮罩（2000）。 */
+.goocan-member-picker-dialog {
+  border-radius: var(--td-radius-large) !important;
+  overflow: hidden;
+  background: var(--td-bg-color-container) !important;
+
+  .t-dialog__body {
+    padding: 18px 24px 0 !important;
+  }
+
+  .t-dialog__footer {
+    padding: 16px 24px 20px !important;
+    border-top: 1px solid var(--td-component-stroke);
+  }
+}
+
 .member-invite-popup-overlay {
   z-index: 3050 !important;
 

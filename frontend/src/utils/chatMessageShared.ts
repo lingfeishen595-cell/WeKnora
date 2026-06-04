@@ -40,17 +40,28 @@ export const buildManualMarkdown = (_question: string, answer: string): string =
 };
 
 export const copyTextToClipboard = async (content: string): Promise<void> => {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(content);
-    return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(content);
+      return;
+    }
+  } catch {
+    // Fall through to the legacy copy path for non-secure HTTP origins.
   }
 
   const textArea = document.createElement('textarea');
   textArea.value = content;
   textArea.style.position = 'fixed';
+  textArea.style.top = '0';
+  textArea.style.left = '0';
   textArea.style.opacity = '0';
+  textArea.setAttribute('readonly', '');
   document.body.appendChild(textArea);
+  textArea.focus();
   textArea.select();
-  document.execCommand('copy');
+  const copied = document.execCommand('copy');
   document.body.removeChild(textArea);
+  if (!copied) {
+    throw new Error('Copy command failed');
+  }
 };

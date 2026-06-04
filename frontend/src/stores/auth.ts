@@ -8,6 +8,7 @@ import { reloadFontFromStorage } from '@/composables/useFont'
 import { reloadThemeFromStorage } from '@/composables/useTheme'
 import { resetMigrationLatch } from '@/composables/preferenceStorage'
 import { BUILTIN_QUICK_ANSWER_ID } from '@/api/agent'
+import { clearStoredGoocanAuth } from '@/api/goocan-login'
 
 // Per-user UI preferences are namespaced by user id in localStorage.
 // Reload them whenever the active user changes.
@@ -392,6 +393,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('weknora_selected_tenant_name')
     localStorage.removeItem('weknora_memberships')
     localStorage.removeItem('weknora_lite_mode')
+    clearStoredGoocanAuth()
     isLiteMode.value = false
     try {
       sessionStorage.removeItem('weknora_lite_last_path')

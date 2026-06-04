@@ -149,6 +149,7 @@ type GoocanExchangeRequest struct {
 	ProjectID   string `json:"project_id"`
 	SessionID   string `json:"session_id"`
 	AccessToken string `json:"access_token"`
+	InviteToken string `json:"invite_token"`
 }
 
 type OIDCAuthURLResponse struct {

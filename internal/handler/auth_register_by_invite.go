@@ -34,6 +34,7 @@ type invitationLookupResponse struct {
 	TenantName string           `json:"tenant_name,omitempty"`
 	Role       types.TenantRole `json:"role"`
 	ExpiresAt  string           `json:"expires_at"`
+	CorpID     string           `json:"corp_id,omitempty"`
 }
 
 // invitationLookupRequest carries the token in the request body
@@ -93,6 +94,7 @@ func (h *AuthHandler) LookupInvitationByToken(c *gin.Context) {
 		TenantID:  inv.TenantID,
 		Role:      inv.Role,
 		ExpiresAt: inv.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		CorpID:    goocanDefaultCorpIDFor(h.configInfo),
 	}
 	if tenant, terr := h.tenantService.GetTenantByID(ctx, inv.TenantID); terr == nil && tenant != nil {
 		resp.TenantName = tenant.Name

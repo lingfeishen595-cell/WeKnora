@@ -553,6 +553,7 @@ func RegisterTenantRoutes(
 			if memberHandler != nil {
 				tenantByID.GET("/members", g.Viewer(), memberHandler.ListMembers)
 				tenantByID.POST("/members", g.Owner(), memberHandler.AddMember)
+				tenantByID.POST("/members/goocan-batch", g.Owner(), memberHandler.AddGoocanMembersBatch)
 				tenantByID.PUT("/members/:user_id", g.Owner(), memberHandler.UpdateMemberRole)
 				tenantByID.DELETE("/members/:user_id", g.Owner(), memberHandler.RemoveMember)
 				tenantByID.POST("/leave", g.Viewer(), memberHandler.LeaveTenant)

@@ -53,9 +53,34 @@ export interface AddMemberRequest {
   role: TenantRole
 }
 
+export interface AddGoocanMemberUser {
+  user_id: string
+  user_code?: string
+  user_name?: string
+  user_email?: string
+  user_avatar?: string
+  corp_id?: string
+  project_id?: string
+}
+
+export interface AddGoocanMembersRequest {
+  role: TenantRole
+  users: AddGoocanMemberUser[]
+}
+
 export interface AddMemberResponse {
   success: boolean
   data?: TenantMember
+  message?: string
+}
+
+export interface AddGoocanMembersResponse {
+  success: boolean
+  data?: {
+    added: TenantMember[]
+    already_member: Array<{ user_id: string; user_name?: string; email?: string; message?: string }>
+    failed: Array<{ user_id?: string; user_name?: string; email?: string; message?: string }>
+  }
   message?: string
 }
 
@@ -113,6 +138,21 @@ export async function addMember(
   body: AddMemberRequest,
 ): Promise<AddMemberResponse> {
   return (await post(`/api/v1/tenants/${tenantId}/members`, body)) as unknown as AddMemberResponse
+}
+
+/**
+ * Add Goocan users directly to a tenant. The backend provisions missing
+ * local users by Goocan user_id before creating tenant memberships.
+ * Backend: POST /api/v1/tenants/:id/members/goocan-batch (Owner+).
+ */
+export async function addGoocanMembers(
+  tenantId: number,
+  body: AddGoocanMembersRequest,
+): Promise<AddGoocanMembersResponse> {
+  return (await post(
+    `/api/v1/tenants/${tenantId}/members/goocan-batch`,
+    body,
+  )) as unknown as AddGoocanMembersResponse
 }
 
 /**

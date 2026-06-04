@@ -126,7 +126,7 @@ func (s *stubMemberUserService) GetUsersByIDs(ctx context.Context, ids []string)
 // middleware via memberTestRouter rather than threading a cfg through
 // the handler.
 func newTestMemberHandler(ms interfaces.TenantMemberService, us interfaces.UserService) *TenantMemberHandler {
-	return NewTenantMemberHandler(ms, us)
+	return NewTenantMemberHandler(ms, us, nil)
 }
 
 // memberTestRouter wires the handler with the same errorCapture middleware
@@ -166,10 +166,10 @@ const defaultTestTenantID uint64 = 1
 // stuffed into the request context. The zero value matches the common
 // case ("authenticated, active in tenant 1, no superuser flag").
 type memberCtxOpts struct {
-	callerID    string
-	tenantID    uint64
-	user        *types.User
-	skipTenant  bool // when true, do NOT set TenantIDContextKey at all
+	callerID   string
+	tenantID   uint64
+	user       *types.User
+	skipTenant bool // when true, do NOT set TenantIDContextKey at all
 }
 
 // withMemberCtx installs the auth-middleware-equivalent values on req's
@@ -685,7 +685,7 @@ func TestTenantMember_SuperuserBypassRequiresFeatureFlag(t *testing.T) {
 	// Build the router with the flag explicitly off — the carve-out
 	// now lives in middleware.RequirePathTenantMatch, which the router
 	// helper mounts.
-	h := NewTenantMemberHandler(ms, &stubMemberUserService{})
+	h := NewTenantMemberHandler(ms, &stubMemberUserService{}, nil)
 	router := memberTestRouterWithCfg(h, &config.Config{
 		Tenant: &config.TenantConfig{EnableCrossTenantAccess: false},
 	})

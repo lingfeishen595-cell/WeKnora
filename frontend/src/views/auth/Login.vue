@@ -161,7 +161,6 @@
           <div class="form-header">
             <h2 class="form-title">{{ $t('auth.login') }}</h2>
             <p class="form-welcome">{{ $t('auth.subtitle') }}</p>
-            <p v-if="registrationEnabled" class="form-hint">{{ $t('auth.loginHint') }}</p>
           </div>
 
           <div class="form-content">
@@ -249,12 +248,34 @@
             {{ inviteLookupError }}
           </div>
           <div class="form-header">
-            <h2 class="form-title">{{ $t('auth.createAccount') }}</h2>
-            <p class="form-subtitle">{{ $t('auth.registerSubtitle') }}</p>
+            <h2 class="form-title">{{ inviteToken ? $t('auth.acceptInvitation') : $t('auth.createAccount') }}</h2>
+            <p class="form-subtitle">{{ inviteToken ? $t('auth.inviteGoocanSubtitle') : $t('auth.registerSubtitle') }}</p>
           </div>
 
           <div class="form-content">
-            <t-form ref="registerFormRef" :data="registerData" :rules="registerRules" @submit="handleRegister"
+            <t-form v-if="inviteToken && inviteLookup && goocanEnabled" layout="vertical" :data="goocanForm"
+              @submit="handleInviteGoocanLogin">
+              <t-form-item label="CorpID" name="corpId">
+                <t-input v-model="goocanForm.corpId" placeholder="请输入 CorpID" size="large"
+                  :disabled="goocanLoading" />
+              </t-form-item>
+              <t-form-item label="账号/手机号/工号" name="username">
+                <t-input v-model="goocanForm.username" placeholder="请输入账号/手机号/工号" size="large"
+                  :disabled="goocanLoading" />
+              </t-form-item>
+              <t-form-item label="Goocan 密码" name="password">
+                <t-input v-model="goocanForm.password" placeholder="请输入 Goocan 密码" type="password" size="large"
+                  :disabled="goocanLoading" @enter="handleInviteGoocanLogin" />
+              </t-form-item>
+              <t-button type="submit" theme="primary" size="large" block :loading="goocanLoading"
+                :disabled="loading || oidcLoading" class="goocan-button">
+                {{ goocanLoading ? $t('auth.inviteGoocanJoining') : $t('auth.inviteGoocanJoin') }}
+              </t-button>
+            </t-form>
+            <div v-else-if="inviteToken && inviteLookup && !goocanEnabled" class="invite-banner invite-banner--error">
+              {{ $t('auth.goocanLoginDisabled') }}
+            </div>
+            <t-form v-else ref="registerFormRef" :data="registerData" :rules="registerRules" @submit="handleRegister"
               layout="vertical">
               <t-form-item :label="$t('auth.username')" name="username">
                 <t-input v-model="registerData.username" :placeholder="$t('auth.usernamePlaceholder')" size="large"
@@ -331,7 +352,6 @@ import {
   exchangeGoocanLogin,
   userInfoFromApi,
   getInvitationByToken,
-  registerByInvite,
   type InviteLookup,
 } from '@/api/auth'
 import {
@@ -341,6 +361,7 @@ import {
   isGoocanLoginEnabled,
   loginWithGoocanCode,
   loginWithGoocanPassword,
+  saveGoocanAuth,
   type GoocanLoginResponse,
 } from '@/api/goocan-login'
 import { useAuthStore } from '@/stores/auth'
@@ -398,11 +419,10 @@ const goocanEnabled = computed(() => isGoocanLoginEnabled())
 const registrationEnabled = ref(true)
 
 // invite-link state. When the URL carries ?token=xxx we resolve it to
-// the originating tenant + role and switch the form into a "register
-// via invitation" mode. The token bypasses the normal invite_only
-// gate — possessing it IS the authorisation. Submitting the register
-// form with this set hits /auth/register-by-invite (auto-login on
-// success) instead of /auth/register.
+// the originating tenant + role and switch the form into a Goocan
+// invite-login mode. The token bypasses the normal invite_only gate —
+// possessing it IS the authorisation, but identity still comes from
+// Goocan user_id via /auth/goocan/exchange.
 const inviteToken = ref('')
 const inviteLookup = ref<InviteLookup | null>(null)
 const inviteLookupError = ref('')
@@ -651,24 +671,30 @@ const handleLogin = async () => {
   }
 }
 
-const persistGoocanLogin = async (data: GoocanLoginResponse) => {
+const persistGoocanLogin = async (
+  data: GoocanLoginResponse,
+  options: { inviteToken?: string; corpId?: string } = {},
+) => {
   const response = await exchangeGoocanLogin({
     user_id: data.user_id,
     user_code: data.user_code,
     user_name: data.user_name,
     user_email: data.user_email,
     user_avatar: data.user_avatar,
-    corp_id: data.corp_id || data.out_organ_id || goocanForm.corpId,
+    corp_id: data.corp_id || data.out_organ_id || options.corpId || goocanForm.corpId,
     project_id: data.project_id || getGoocanProjectId(),
     session_id: data.session_id,
     access_token: data.access_token,
+    invite_token: options.inviteToken,
   })
   if (!response.success) {
     MessagePlugin.error(response.message || 'Goocan 登录失败')
-    return
+    return false
   }
+  saveGoocanAuth(data, options.corpId || goocanForm.corpId)
   await persistLoginResponse(response)
   notifyLoginSuccess(response, t, tm, formatRole, roleIcon)
+  return true
 }
 
 const handleGoocanPasswordLogin = async () => {
@@ -687,6 +713,32 @@ const handleGoocanPasswordLogin = async () => {
     await persistGoocanLogin({ ...result, corp_id: result.corp_id || goocanForm.corpId })
   } catch (error: any) {
     console.error('Goocan 登录错误:', error)
+    MessagePlugin.error(error.message || 'Goocan 登录失败')
+  } finally {
+    goocanLoading.value = false
+  }
+}
+
+const handleInviteGoocanLogin = async () => {
+  if (!inviteToken.value) return
+  if (!goocanForm.corpId || !goocanForm.username || !goocanForm.password) {
+    MessagePlugin.warning('请输入 CorpID、账号和密码')
+    return
+  }
+  try {
+    goocanLoading.value = true
+    const result = await loginWithGoocanPassword({
+      corpId: goocanForm.corpId,
+      username: goocanForm.username,
+      password: goocanForm.password,
+      projectId: getGoocanProjectId(),
+    })
+    await persistGoocanLogin(
+      { ...result, corp_id: result.corp_id || goocanForm.corpId },
+      { inviteToken: inviteToken.value, corpId: goocanForm.corpId },
+    )
+  } catch (error: any) {
+    console.error('Goocan 邀请登录错误:', error)
     MessagePlugin.error(error.message || 'Goocan 登录失败')
   } finally {
     goocanLoading.value = false
@@ -747,35 +799,14 @@ const tryGoocanAutoLogin = async () => {
   return false
 }
 
-// Handle registration. Dispatches based on whether the user arrived
-// with a share-link token: with token -> register-by-invite (auto-
-// login on success); without -> the normal self-service register
-// (drops back to the login form for the user to sign in).
+// Handle self-service registration. Invitation links use Goocan login
+// and /auth/goocan/exchange with invite_token instead.
 const handleRegister = async () => {
   try {
     const valid = await registerFormRef.value?.validate()
     if (valid !== true) return
 
     loading.value = true
-
-    if (inviteToken.value) {
-      const response = await registerByInvite({
-        token: inviteToken.value,
-        username: registerData.username,
-        email: registerData.email,
-        password: registerData.password,
-      })
-      if (!response.success) {
-        MessagePlugin.error(response.message || t('auth.registerFailed'))
-        return
-      }
-      MessagePlugin.success(t('auth.registerSuccess'))
-      // register-by-invite returns the same shape as login (token +
-      // active_tenant + memberships), so reuse the login persistence
-      // path — same store writes, same redirect target.
-      await persistLoginResponse(response)
-      return
-    }
 
     const response = await register({
       username: registerData.username,
@@ -807,8 +838,8 @@ const handleRegister = async () => {
 
 // Check if already logged in; for lite edition, attempt transparent auto-setup
 onMounted(async () => {
-  // Share-link landing: ?token=xxx switches the form into invite-
-  // register mode before any other auto-flow (logged-in redirect /
+  // Share-link landing: ?token=xxx switches the form into Goocan
+  // invite-login mode before any other auto-flow (logged-in redirect /
   // auto-setup / OIDC) gets a chance to redirect. Resolution failure
   // surfaces inline; the user can still log in normally if they
   // already have an account. We check this BEFORE the isLoggedIn
@@ -818,15 +849,18 @@ onMounted(async () => {
   const tokenFromQuery = String(route.query.token || '').trim()
   if (tokenFromQuery) {
     inviteToken.value = tokenFromQuery
+    registrationEnabled.value = true
+    isRegisterMode.value = true
+    const corpIDFromQuery = String(route.query.corpId || '').trim()
+    if (corpIDFromQuery) {
+      goocanForm.corpId = corpIDFromQuery
+    }
     inviteLookupLoading.value = true
     try {
       const resp = await getInvitationByToken(tokenFromQuery)
       if (resp.success && resp.data) {
         inviteLookup.value = resp.data
-        // Token bypasses invite_only — show the register card even
-        // when self-service registration is otherwise disabled.
-        registrationEnabled.value = true
-        isRegisterMode.value = true
+        goocanForm.corpId = resp.data.corp_id || corpIDFromQuery || goocanForm.corpId || getGoocanDefaultCorpId()
       } else {
         inviteLookupError.value = resp.message || t('inviteRegister.invalidBody')
       }
@@ -1442,17 +1476,6 @@ onMounted(async () => {
   font-size: 13px;
   color: var(--td-text-color-secondary);
   margin: 0;
-  font-family: var(--app-font-family);
-}
-
-.form-hint {
-  margin: 10px 0 0;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: var(--td-success-color-light, rgba(7, 192, 95, 0.08));
-  color: var(--td-brand-color-active);
-  font-size: 12.5px;
-  line-height: 1.5;
   font-family: var(--app-font-family);
 }
 

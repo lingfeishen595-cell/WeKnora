@@ -36,12 +36,12 @@ export default {
     reopen: "사용 가이드",
     steps: {
       welcome: {
-        title: "WeKnora에 오신 것을 환영합니다",
+        title: "DataGoocan에 오신 것을 환영합니다",
         desc: "몇 단계만으로 지식 베이스, 대화, 에이전트의 핵심 사용법을 안내합니다. '다음'을 눌러 시작하세요.",
       },
       knowledge: {
         title: "지식 베이스 만들기",
-        desc: "모든 것의 시작점입니다. 문서, 웹페이지, FAQ를 업로드하면 WeKnora가 자동으로 분석하고 색인합니다. 여기를 클릭해 지식 베이스로 이동하세요.",
+        desc: "모든 것의 시작점입니다. 문서, 웹페이지, FAQ를 업로드하면 DataGoocan이 자동으로 분석하고 색인합니다. 여기를 클릭해 지식 베이스로 이동하세요.",
       },
       chat: {
         title: "AI 대화 시작하기",
@@ -1350,7 +1350,7 @@ export default {
   },
   inviteRegister: {
     bannerTitle: "「{tenant}」에 초대되었습니다",
-    bannerHint: "아래 정보를 입력해 가입을 완료하세요. 등록이 끝나면 자동으로 팀에 합류합니다.",
+    bannerHint: "Goocan 계정으로 로그인하면 이 팀에 자동으로 참여합니다.",
     loading: "초대 링크를 확인하는 중…",
     invalidTitle: "초대 링크가 유효하지 않거나 취소되었습니다",
     invalidBody: "초대한 분께 새 링크를 요청하거나 기존 계정으로 로그인하세요.",
@@ -1398,12 +1398,17 @@ export default {
     register: "회원가입",
     registering: "가입 중...",
     createAccount: "계정 생성",
+    acceptInvitation: "초대 수락",
+    inviteGoocanSubtitle: "Goocan 계정으로 로그인하면 이 공간에 자동으로 참여합니다",
+    inviteGoocanJoin: "Goocan으로 로그인하고 참여",
+    inviteGoocanJoining: "참여 중...",
+    goocanLoginDisabled: "Goocan 로그인이 활성화되어 있지 않습니다. 관리자에게 문의하세요.",
     haveAccount: "이미 계정이 있으신가요?",
     noAccount: "계정이 없으신가요?",
     backToLogin: "로그인으로 돌아가기",
     registerNow: "지금 가입하기",
     loginHint: "로그인하여 계속하세요. 처음이시라면 아래에서 계정을 만드세요.",
-    firstTime: "WeKnora가 처음이신가요?",
+    firstTime: "DataGoocan이 처음이신가요?",
     registerSuccess: "가입 성공! 시스템이 전용 테넌트를 생성했습니다. 로그인해주세요",
     registerFailed: "가입 실패",
     subtitle: "대규모 언어 모델 기반 문서 이해 및 시맨틱 검색 프레임워크",

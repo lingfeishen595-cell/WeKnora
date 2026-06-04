@@ -268,6 +268,9 @@ type AuthConfig struct {
 	// GoocanLoginEnabled enables POST /auth/goocan/exchange, which turns a
 	// Goocan-authenticated identity into WeKnora's local JWT session.
 	GoocanLoginEnabled bool `yaml:"goocan_login_enabled" json:"goocan_login_enabled"`
+	// GoocanDefaultCorpID is appended to generated invitation links so
+	// invitees land on a pre-filled Goocan login form.
+	GoocanDefaultCorpID string `yaml:"goocan_default_corp_id" json:"goocan_default_corp_id"`
 }
 
 // AuthRegistrationMode constants used by handlers and middleware.
@@ -818,6 +821,11 @@ func applyAuthAndTenantDefaults(cfg *Config) {
 	}
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_GOOCAN_LOGIN_ENABLED")); value != "" {
 		cfg.Auth.GoocanLoginEnabled = strings.EqualFold(value, "true")
+	}
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_GOOCAN_DEFAULT_CORP_ID")); value != "" {
+		cfg.Auth.GoocanDefaultCorpID = value
+	} else if value := strings.TrimSpace(os.Getenv("VITE_GOOCAN_DEFAULT_CORP_ID")); value != "" {
+		cfg.Auth.GoocanDefaultCorpID = value
 	}
 
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_TENANT_ENABLE_RBAC")); value != "" {

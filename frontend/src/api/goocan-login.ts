@@ -3,11 +3,19 @@ import { md5 } from 'js-md5'
 type Periphery<T> = {
   n: T
   a?: Record<string, any>
+  v?: Record<string, any>
 }
 
 type PeripheryResponse<T> = {
-  n: T
+  n?: T
   a?: Record<string, any>
+  message?: string
+  msg?: string
+  r?: {
+    result?: string
+    message?: string
+    sub_message?: string
+  }
 }
 
 export interface GoocanLoginResponse {
@@ -30,6 +38,16 @@ interface GetMd5KeyResponse {
 
 interface ConvertThirdResponse {
   corp_out_id: string
+}
+
+const GOOCAN_AUTH_STORAGE_KEY = 'datagoocan_goocan_auth'
+
+export interface GoocanStoredAuth {
+  session_id: string
+  access_token?: string
+  corp_id?: string
+  project_id?: string
+  user_id?: string
 }
 
 export function isGoocanLoginEnabled() {
@@ -58,14 +76,47 @@ async function postGoocan<TReq, TResp>(path: string, data: Periphery<TReq>): Pro
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  const payload = await res.json().catch(() => ({}))
+  const payload = (await res.json().catch(() => ({}))) as PeripheryResponse<TResp>
   if (!res.ok) {
     throw new Error(payload?.message || payload?.msg || `Goocan request failed: ${res.status}`)
   }
-  if (payload?.n) {
-    return (payload as PeripheryResponse<TResp>).n
+  if (payload?.r && payload.r.result && payload.r.result !== '1') {
+    throw new Error(payload.r.sub_message || payload.r.message || 'Goocan request failed')
+  }
+  if (payload?.n !== undefined) {
+    return payload.n
   }
   return payload as TResp
+}
+
+export function saveGoocanAuth(data: GoocanLoginResponse, fallbackCorpId?: string) {
+  if (typeof window === 'undefined' || !data.session_id) return
+  const auth: GoocanStoredAuth = {
+    session_id: data.session_id,
+    access_token: data.access_token,
+    corp_id: data.corp_id || data.out_organ_id || fallbackCorpId,
+    project_id: data.project_id || getGoocanProjectId(),
+    user_id: data.user_id,
+  }
+  localStorage.setItem(GOOCAN_AUTH_STORAGE_KEY, JSON.stringify(auth))
+}
+
+export function getStoredGoocanAuth(): GoocanStoredAuth | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(GOOCAN_AUTH_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as GoocanStoredAuth
+    if (!parsed?.session_id) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function clearStoredGoocanAuth() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(GOOCAN_AUTH_STORAGE_KEY)
 }
 
 export async function loginWithGoocanPassword(params: {

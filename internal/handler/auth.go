@@ -233,6 +233,24 @@ func (h *AuthHandler) GoocanExchange(c *gin.Context) {
 		c.Error(appErr)
 		return
 	}
+	req.InviteToken = strings.TrimSpace(req.InviteToken)
+	var invite *types.TenantInvitation
+	if req.InviteToken != "" {
+		if h.invitationSvc == nil {
+			c.Error(errors.NewInternalServerError("invitation service unavailable"))
+			return
+		}
+		var lookupErr error
+		invite, lookupErr = h.invitationSvc.LookupByToken(ctx, req.InviteToken)
+		if lookupErr != nil {
+			c.Error(&errors.AppError{
+				Code:     errors.ErrNotFound,
+				Message:  "invitation link is invalid or has been revoked",
+				HTTPCode: http.StatusGone,
+			})
+			return
+		}
+	}
 
 	response, err := h.userService.LoginWithGoocan(ctx, &req)
 	if err != nil {
@@ -245,6 +263,31 @@ func (h *AuthHandler) GoocanExchange(c *gin.Context) {
 		logger.Warnf(ctx, "Goocan login failed: %s", response.Message)
 		c.JSON(http.StatusUnauthorized, response)
 		return
+	}
+	if invite != nil {
+		if response.User == nil {
+			c.Error(errors.NewInternalServerError("Goocan login response missing user"))
+			return
+		}
+		if _, err := h.invitationSvc.AcceptByToken(ctx, req.InviteToken, response.User.ID); err != nil {
+			logger.Errorf(ctx, "Goocan invite accept failed user=%s tenant=%d: %v",
+				secutils.SanitizeForLog(response.User.ID), invite.TenantID, err)
+			c.Error(&errors.AppError{
+				Code:     errors.ErrNotFound,
+				Message:  "invitation link is no longer valid",
+				HTTPCode: http.StatusGone,
+			})
+			return
+		}
+		switched, switchErr := h.userService.SwitchTenant(ctx, response.User, invite.TenantID, response.RefreshToken)
+		if switchErr != nil {
+			logger.Errorf(ctx, "Goocan invite tenant switch failed user=%s tenant=%d: %v",
+				secutils.SanitizeForLog(response.User.ID), invite.TenantID, switchErr)
+			c.Error(errors.NewInternalServerError("failed to enter invited workspace").WithDetails(switchErr.Error()))
+			return
+		}
+		switched.Message = "Goocan invitation login successful"
+		response = switched
 	}
 
 	logger.Infof(ctx, "Goocan user logged in successfully, user_id: %s",

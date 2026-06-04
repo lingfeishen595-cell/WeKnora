@@ -111,6 +111,7 @@ extract:
 auth:
   registration_mode: "self_serve"
   goocan_login_enabled: false
+  goocan_default_corp_id: ""
 
 # Tenant configuration
 tenant:

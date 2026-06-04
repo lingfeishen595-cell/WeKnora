@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -32,8 +33,9 @@ import (
 // is guaranteed to either match the active tenant or carry a
 // cross-tenant superuser bypass.
 type TenantMemberHandler struct {
-	memberService interfaces.TenantMemberService
-	userService   interfaces.UserService
+	memberService     interfaces.TenantMemberService
+	userService       interfaces.UserService
+	invitationService interfaces.TenantInvitationService
 }
 
 // NewTenantMemberHandler wires the dependencies. PR 1 already provides
@@ -44,10 +46,12 @@ type TenantMemberHandler struct {
 func NewTenantMemberHandler(
 	memberService interfaces.TenantMemberService,
 	userService interfaces.UserService,
+	invitationService interfaces.TenantInvitationService,
 ) *TenantMemberHandler {
 	return &TenantMemberHandler{
-		memberService: memberService,
-		userService:   userService,
+		memberService:     memberService,
+		userService:       userService,
+		invitationService: invitationService,
 	}
 }
 
@@ -60,6 +64,30 @@ func NewTenantMemberHandler(
 type addMemberRequest struct {
 	Email string           `json:"email" binding:"required,email"`
 	Role  types.TenantRole `json:"role" binding:"required"`
+}
+
+type addGoocanMembersRequest struct {
+	Role  types.TenantRole       `json:"role" binding:"required"`
+	Users []goocanMemberUserSpec `json:"users" binding:"required"`
+}
+
+type goocanMemberUserSpec struct {
+	UserID      string `json:"user_id"`
+	UserCode    string `json:"user_code"`
+	UserName    string `json:"user_name"`
+	UserEmail   string `json:"user_email"`
+	UserAvatar  string `json:"user_avatar"`
+	CorpID      string `json:"corp_id"`
+	ProjectID   string `json:"project_id"`
+	SessionID   string `json:"session_id"`
+	AccessToken string `json:"access_token"`
+}
+
+type goocanMemberBatchItem struct {
+	UserID   string `json:"user_id"`
+	UserName string `json:"user_name,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Message  string `json:"message,omitempty"`
 }
 
 // updateMemberRoleRequest is the JSON body for PUT /tenants/:id/members/:user_id.
@@ -268,6 +296,171 @@ func (h *TenantMemberHandler) AddMember(c *gin.Context) {
 		"success": true,
 		"data":    resp,
 	})
+}
+
+// AddGoocanMembersBatch godoc
+// @Summary      通过 Goocan 用户 ID 批量直加租户成员
+// @Description  Owner 从 Goocan 选人组件选择人员后，按 Goocan user_id 自动查找/创建本地用户，并直接加入当前租户。
+// @Tags         租户成员
+// @Accept       json
+// @Produce      json
+// @Param        id       path  string                   true  "租户 ID"
+// @Param        request  body  addGoocanMembersRequest  true  "Goocan 批量成员请求"
+// @Success      200  {object}  map[string]interface{}
+// @Security     Bearer
+// @Router       /tenants/{id}/members/goocan-batch [post]
+func (h *TenantMemberHandler) AddGoocanMembersBatch(c *gin.Context) {
+	ctx := c.Request.Context()
+	tenantID, ok := parseTenantIDFromPath(c)
+	if !ok {
+		return
+	}
+
+	var req addGoocanMembersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(apperrors.NewValidationError("invalid request body").WithDetails(err.Error()))
+		return
+	}
+	if !req.Role.IsValid() {
+		c.Error(apperrors.NewValidationError("role must be one of owner/admin/contributor/viewer"))
+		return
+	}
+	if len(req.Users) == 0 {
+		c.Error(apperrors.NewValidationError("users is required"))
+		return
+	}
+	if len(req.Users) > 50 {
+		c.Error(apperrors.NewValidationError("users cannot exceed 50"))
+		return
+	}
+
+	caller, _ := types.UserIDFromContext(ctx)
+	var invitedBy *string
+	if caller != "" && !types.IsSyntheticUserID(caller) {
+		invitedBy = &caller
+	}
+
+	seen := make(map[string]struct{}, len(req.Users))
+	added := make([]types.TenantMemberResponse, 0, len(req.Users))
+	alreadyMember := make([]goocanMemberBatchItem, 0)
+	failed := make([]goocanMemberBatchItem, 0)
+
+	for _, raw := range req.Users {
+		userID := strings.TrimSpace(raw.UserID)
+		if userID == "" {
+			failed = append(failed, goocanMemberBatchItem{Message: "user_id is required"})
+			continue
+		}
+		if _, ok := seen[userID]; ok {
+			continue
+		}
+		seen[userID] = struct{}{}
+
+		loginResp, err := h.userService.LoginWithGoocan(ctx, &types.GoocanExchangeRequest{
+			UserID:      userID,
+			UserCode:    strings.TrimSpace(raw.UserCode),
+			UserName:    strings.TrimSpace(raw.UserName),
+			UserEmail:   strings.TrimSpace(raw.UserEmail),
+			UserAvatar:  strings.TrimSpace(raw.UserAvatar),
+			CorpID:      strings.TrimSpace(raw.CorpID),
+			ProjectID:   strings.TrimSpace(raw.ProjectID),
+			SessionID:   strings.TrimSpace(raw.SessionID),
+			AccessToken: strings.TrimSpace(raw.AccessToken),
+		})
+		if err != nil {
+			logger.Errorf(ctx, "Goocan batch member user provision failed: user_id=%s err=%v",
+				secutils.SanitizeForLog(userID), err)
+			failed = append(failed, goocanMemberBatchItem{
+				UserID:   userID,
+				UserName: strings.TrimSpace(raw.UserName),
+				Email:    strings.TrimSpace(raw.UserEmail),
+				Message:  "failed to provision user",
+			})
+			continue
+		}
+		if loginResp == nil || !loginResp.Success || loginResp.User == nil {
+			msg := "failed to provision user"
+			if loginResp != nil && strings.TrimSpace(loginResp.Message) != "" {
+				msg = loginResp.Message
+			}
+			failed = append(failed, goocanMemberBatchItem{
+				UserID:   userID,
+				UserName: strings.TrimSpace(raw.UserName),
+				Email:    strings.TrimSpace(raw.UserEmail),
+				Message:  msg,
+			})
+			continue
+		}
+
+		user := loginResp.User
+		member, err := h.memberService.AddMember(ctx, user.ID, tenantID, req.Role, invitedBy)
+		if err != nil {
+			if errors.Is(err, service.ErrMembershipAlreadyExists) {
+				alreadyMember = append(alreadyMember, goocanMemberBatchItem{
+					UserID:   user.ID,
+					UserName: user.Username,
+					Email:    user.Email,
+					Message:  service.ErrMembershipAlreadyExists.Error(),
+				})
+				continue
+			}
+			logger.Errorf(ctx, "Goocan batch member add failed: user=%s tenant=%d err=%v",
+				secutils.SanitizeForLog(user.ID), tenantID, err)
+			failed = append(failed, goocanMemberBatchItem{
+				UserID:   user.ID,
+				UserName: user.Username,
+				Email:    user.Email,
+				Message:  err.Error(),
+			})
+			continue
+		}
+
+		h.revokePendingInvitationForUser(ctx, tenantID, user.ID)
+		added = append(added, types.TenantMemberResponse{
+			UserID:    member.UserID,
+			Email:     user.Email,
+			Username:  user.Username,
+			Avatar:    user.Avatar,
+			Role:      member.Role,
+			Status:    member.Status,
+			InvitedBy: member.InvitedBy,
+			JoinedAt:  member.JoinedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"added":          added,
+			"already_member": alreadyMember,
+			"failed":         failed,
+		},
+	})
+}
+
+func (h *TenantMemberHandler) revokePendingInvitationForUser(ctx context.Context, tenantID uint64, userID string) {
+	if h.invitationService == nil {
+		return
+	}
+	rows, err := h.invitationService.ListByInvitee(ctx, userID, false)
+	if err != nil {
+		logger.Warnf(ctx, "Goocan batch member pending invitation lookup failed: user=%s tenant=%d err=%v",
+			secutils.SanitizeForLog(userID), tenantID, err)
+		return
+	}
+	for _, inv := range rows {
+		if inv == nil ||
+			inv.TenantID != tenantID ||
+			inv.Status != types.TenantInvitationStatusPending ||
+			inv.InviteeUserID != userID ||
+			inv.Token != "" {
+			continue
+		}
+		if err := h.invitationService.Revoke(ctx, inv.ID); err != nil {
+			logger.Warnf(ctx, "Goocan batch member pending invitation revoke failed: invitation=%d user=%s tenant=%d err=%v",
+				inv.ID, secutils.SanitizeForLog(userID), tenantID, err)
+		}
+	}
 }
 
 // UpdateMemberRole godoc

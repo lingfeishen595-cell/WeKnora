@@ -36,12 +36,12 @@ export default {
     reopen: 'Product tour',
     steps: {
       welcome: {
-        title: 'Welcome to WeKnora',
+        title: 'Welcome to DataGoocan',
         desc: 'A few quick steps to get you familiar with knowledge bases, chat and agents. Click "Next" to begin.',
       },
       knowledge: {
         title: 'Create your knowledge base',
-        desc: 'Everything starts here: upload documents, web pages or FAQs and WeKnora parses and indexes them automatically. Click here to open knowledge bases.',
+        desc: 'Everything starts here: upload documents, web pages or FAQs and DataGoocan parses and indexes them automatically. Click here to open knowledge bases.',
       },
       chat: {
         title: 'Start an AI chat',
@@ -1496,7 +1496,7 @@ export default {
   },
   inviteRegister: {
     bannerTitle: 'You have been invited to join "{tenant}"',
-    bannerHint: 'Fill in the details below to register. You will join the team automatically once registration completes.',
+    bannerHint: 'Sign in with your Goocan account to join this team automatically.',
     loading: 'Verifying invitation link…',
     invalidTitle: 'Invitation link is invalid or revoked',
     invalidBody: 'Ask your inviter to send a new link, or sign in with an existing account.',
@@ -1544,12 +1544,17 @@ export default {
     register: 'Register',
     registering: 'Registering...',
     createAccount: 'Create Account',
+    acceptInvitation: 'Accept Invitation',
+    inviteGoocanSubtitle: 'Sign in with your Goocan account to join this workspace',
+    inviteGoocanJoin: 'Sign in with Goocan and Join',
+    inviteGoocanJoining: 'Joining...',
+    goocanLoginDisabled: 'Goocan login is not enabled. Please contact an administrator.',
     haveAccount: 'Already have an account?',
     noAccount: 'Don\'t have an account?',
     backToLogin: 'Back to Login',
     registerNow: 'Register Now',
     loginHint: 'Sign in to continue, or create an account below if this is your first time.',
-    firstTime: 'New to WeKnora?',
+    firstTime: 'New to DataGoocan?',
     registerSuccess: 'Registration successful! The system has created an exclusive tenant for you, please login',
     registerFailed: 'Registration failed',
     subtitle: 'Document understanding and semantic search framework based on large models',

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -41,7 +42,24 @@ func buildInviteRegisterURL(cfg *config.Config, plainToken string) string {
 	if plainToken == "" {
 		return ""
 	}
-	return frontendBaseURLFor(cfg) + "/register?token=" + plainToken
+	values := url.Values{}
+	values.Set("token", plainToken)
+	if corpID := goocanDefaultCorpIDFor(cfg); corpID != "" {
+		values.Set("corpId", corpID)
+	}
+	return frontendBaseURLFor(cfg) + "/register?" + values.Encode()
+}
+
+func goocanDefaultCorpIDFor(cfg *config.Config) string {
+	if cfg != nil && cfg.Auth != nil {
+		if corpID := strings.TrimSpace(cfg.Auth.GoocanDefaultCorpID); corpID != "" {
+			return corpID
+		}
+	}
+	if corpID := strings.TrimSpace(os.Getenv("WEKNORA_GOOCAN_DEFAULT_CORP_ID")); corpID != "" {
+		return corpID
+	}
+	return strings.TrimSpace(os.Getenv("VITE_GOOCAN_DEFAULT_CORP_ID"))
 }
 
 // createInviteLinkRequest is the body for POST /tenants/:id/invite-links.

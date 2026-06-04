@@ -65,6 +65,7 @@ export interface GoocanExchangeRequest {
   project_id?: string
   session_id?: string
   access_token?: string
+  invite_token?: string
 }
 
 export interface OIDCAuthURLResponse {
@@ -467,6 +468,7 @@ export interface InviteLookup {
   tenant_name?: string
   role: string
   expires_at: string
+  corp_id?: string
 }
 
 export interface InviteLookupResponse {
